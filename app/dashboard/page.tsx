@@ -1,32 +1,22 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { FiCalendar, FiStar, FiPlus, FiMapPin, FiUser, FiLogOut, FiChevronDown } from 'react-icons/fi';
-import dynamic from 'next/dynamic';
+import { 
+  FiPlus, FiSearch, FiFilter, FiStar, FiMoreVertical, FiX, 
+  FiEdit2, FiTrash2, FiUser, FiLogOut, FiHeart, FiChevronDown, 
+  FiMapPin, FiCalendar 
+} from 'react-icons/fi';
+import NewTripForm from './components/NewTripForm';
+import { Trip, TripDay, TripType, TripFormData } from '@/types/trip';
+import { tripService } from '@/firebase/config';
 
-const NewTripForm = dynamic(() => import('./components/NewTripForm'), { ssr: false });
-
-type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
-
-interface TripDay {
-  day: number;
-  location: string;
-  activities: string[];
-}
-
-interface Trip {
-  id: string;
-  title: string;
-  description: string;
-  location: string;
-  startDate: string;
-  endDate: string;
-  type: TripType;
-  imageUrl: string;
-  saved: number;
-  days: TripDay[];
+// Extend the Trip interface to include Firestore fields
+interface FirestoreTrip extends Omit<TripType, 'id' | 'createdAt' | 'updatedAt'> {
+  id?: string;
+  createdAt?: any; // Firestore Timestamp
+  updatedAt?: any; // Firestore Timestamp
 }
 
 interface UserProfile {
@@ -47,6 +37,8 @@ interface DashboardState {
   };
   searchQuery: string;
   activeFilter: string;
+  loading: boolean;
+  error: string | null;
 }
 
 const formatDate = (dateString: string): string => {
@@ -55,11 +47,14 @@ const formatDate = (dateString: string): string => {
 };
 
 export default function Dashboard() {
-  const { user, loading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
   
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const [selectedTrip, setSelectedTrip] = useState<TripType | null>(null);
+  const [showTripActions, setShowTripActions] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -75,7 +70,20 @@ export default function Dashboard() {
     };
   }, []);
 
-  const { logout } = useAuth();
+  const [dashboardState, setDashboardState] = useState<DashboardState>({
+    trips: [],
+    filteredTrips: [],
+    showNewTripForm: false,
+    userProfile: null,
+    filters: {
+      type: null,
+      location: null
+    },
+    searchQuery: '',
+    activeFilter: 'all',
+    loading: true,
+    error: null
+  });
 
   const handleSignOut = async () => {
     try {
@@ -86,80 +94,48 @@ export default function Dashboard() {
     }
   };
 
-  const [dashboardState, setDashboardState] = useState<DashboardState>({
-    trips: [
-      {
-        id: '1',
-        title: 'Japan Adventure',
-        description: 'An exciting adventure through the bustling streets of Tokyo and the serene countryside of Japan.',
-        location: 'Tokyo, Japan',
-        startDate: '2024-11-15',
-        endDate: '2024-11-25',
-        type: 'adventure',
-        imageUrl: 'https://images.unsplash.com/photo-1492571350019-22de08371fd3?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-        saved: 124,
-        days: [
-          { day: 1, location: 'Tokyo', activities: ['Arrival', 'Shibuya Crossing'] },
-          { day: 2, location: 'Tokyo', activities: ['Meiji Shrine', 'Harajuku'] }
-        ]
-      },
-      {
-        id: '2',
-        title: 'Paris Getaway',
-        description: 'A romantic getaway to the city of love, exploring its iconic landmarks and cuisine.',
-        location: 'Paris, France',
-        startDate: '2024-10-05',
-        endDate: '2024-10-10',
-        type: 'leisure',
-        imageUrl: 'https://images.unsplash.com/photo-1431274172761-fca41d930114?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-        saved: 89,
-        days: [
-          { day: 1, location: 'Paris', activities: ['Eiffel Tower', 'Seine River Cruise'] },
-          { day: 2, location: 'Paris', activities: ['Louvre Museum', 'Notre-Dame'] }
-        ]
-      },
-      {
-        id: '3',
-        title: 'Mountain Hiking',
-        description: 'Challenging hikes through the beautiful Swiss Alps with breathtaking views.',
-        location: 'Swiss Alps, Switzerland',
-        startDate: '2024-09-10',
-        endDate: '2024-09-18',
-        type: 'hiking',
-        imageUrl: 'https://images.unsplash.com/photo-1483728642387-6c3bdd6de93a?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-        saved: 45,
-        days: [
-          { day: 1, location: 'Zermatt', activities: ['Arrival', 'Check-in'] },
-          { day: 2, location: 'Matterhorn', activities: ['Hike to Hörnli Hut'] }
-        ]
-      }
-    ],
-    filteredTrips: [],
-    showNewTripForm: false,
-    userProfile: null,
-    filters: {
-      type: null,
-      location: null
-    },
-    searchQuery: '',
-    activeFilter: 'all'
-  });
-
-  const handleCreateTrip = (newTrip: Omit<Trip, 'id' | 'saved' | 'days'>) => {
-    const trip: Trip = {
-      ...newTrip,
-      id: Date.now().toString(),
-      saved: 0,
-      description: newTrip.description || '',
-      days: [{ day: 1, location: newTrip.location, activities: [''] }]
-    };
+  const handleCreateTrip = async (formData: TripFormData) => {
+    if (!user) return;
     
-    setDashboardState((prev: DashboardState) => ({
-      ...prev,
-      trips: [trip, ...prev.trips],
-      filteredTrips: [trip, ...prev.filteredTrips],
-      showNewTripForm: false
-    }));
+    try {
+      // Create the trip data with required fields
+      const tripData: Omit<Trip, 'id' | 'createdAt' | 'updatedAt'> = {
+        ...formData,
+        saved: 0,
+        isFavorite: false,
+        days: [{ day: 1, location: formData.location, activities: [''] }],
+        description: formData.description || '',
+        imageUrl: formData.imageUrl || ''
+      };
+      
+      // Create the trip in Firestore
+      const createdTrip = await tripService.createTrip(user.uid, tripData);
+      
+      // Format the created trip with proper timestamps
+      const now = new Date().toISOString();
+      const formattedTrip: Trip = {
+        ...tripData,
+        id: createdTrip.id,
+        createdAt: now,
+        updatedAt: now
+      };
+      
+      // Update the UI state
+      setDashboardState(prev => ({
+        ...prev,
+        trips: [formattedTrip, ...prev.trips],
+        filteredTrips: [formattedTrip, ...prev.filteredTrips],
+        showNewTripForm: false,
+        error: null
+      }));
+      
+    } catch (error) {
+      console.error('Error creating trip:', error);
+      setDashboardState(prev => ({
+        ...prev,
+        error: 'Failed to create trip. Please try again.'
+      }));
+    }
   };
 
   const handleFilterTrips = (type: TripType | null, location: string | null) => {
@@ -174,26 +150,142 @@ export default function Dashboard() {
     }));
   };
 
-  const handleToggleFavorite = (tripId: string) => {
-    setDashboardState((prev: DashboardState) => {
-      const updatedTrips = prev.trips.map(trip => 
-        trip.id === tripId ? { ...trip, saved: trip.saved + 1 } : trip
-      );
+  const deleteTrip = async (tripId: string) => {
+    if (!user) return;
+    
+    try {
+      await tripService.deleteTrip(user.uid, tripId);
       
-      return {
+      setDashboardState(prev => ({
         ...prev,
-        trips: updatedTrips,
-        filteredTrips: updatedTrips.filter(trip => 
-          prev.filteredTrips.some(ft => ft.id === trip.id)
-        )
-      };
-    });
+        trips: prev.trips.filter(trip => trip.id !== tripId),
+        filteredTrips: prev.filteredTrips.filter(trip => trip.id !== tripId),
+        error: null
+      }));
+    } catch (error) {
+      console.error('Error deleting trip:', error);
+      setDashboardState(prev => ({
+        ...prev,
+        error: 'Failed to delete trip. Please try again.'
+      }));
+    }
   };
 
+  const toggleFavorite = async (tripId: string) => {
+    if (!user) return;
+    
+    try {
+      const trip = dashboardState.trips.find(t => t.id === tripId);
+      if (!trip) return;
+      
+      const isFavorite = !trip.isFavorite;
+      await tripService.toggleFavorite(user.uid, tripId, !isFavorite);
+      
+      setDashboardState(prev => {
+        const updatedTrips = prev.trips.map(t => 
+          t.id === tripId ? { ...t, isFavorite, updatedAt: new Date().toISOString() } : t
+        );
+        
+        return {
+          ...prev,
+          trips: updatedTrips,
+          filteredTrips: updatedTrips.filter(trip => {
+            const searchQuery = prev.searchQuery.toLowerCase();
+            const matchesSearch = 
+              trip.title.toLowerCase().includes(searchQuery) ||
+              trip.location.toLowerCase().includes(searchQuery);
+            
+            const matchesFilter = 
+              (prev.filters.type === null || trip.type === prev.filters.type) &&
+              (prev.filters.location === null || 
+               trip.location.toLowerCase().includes(prev.filters.location.toLowerCase()));
+            
+            return matchesSearch && matchesFilter;
+          }),
+        };
+      });
+    } catch (error) {
+      console.error('Error updating favorite status:', error);
+    }
+  };
+
+  const fetchTrips = useCallback(async () => {
+    if (!user) {
+      console.error('No authenticated user');
+      setDashboardState(prev => ({
+        ...prev,
+        loading: false,
+        error: 'Authentication required. Please sign in.'
+      }));
+      return;
+    }
+    
+    try {
+      console.log('Fetching trips for user:', user.uid);
+      const trips = await tripService.getTrips(user.uid);
+      
+      // Convert Firestore trip data to Trip interface
+      const formattedTrips = trips.map(trip => {
+        // Handle Firestore timestamps
+        const convertTimestamp = (timestamp: any) => {
+          if (timestamp?.toDate) {
+            return timestamp.toDate().toISOString();
+          } else if (timestamp?.seconds) {
+            return new Date(timestamp.seconds * 1000).toISOString();
+          }
+          return new Date().toISOString();
+        };
+        
+        return {
+          id: trip.id,
+          title: trip.title || 'Untitled Trip',
+          description: trip.description || '',
+          location: trip.location || 'Unknown Location',
+          startDate: trip.startDate || new Date().toISOString(),
+          endDate: trip.endDate || new Date().toISOString(),
+          type: (trip.type || 'leisure') as TripType,
+          imageUrl: trip.imageUrl || '',
+          saved: trip.saved || 0,
+          days: Array.isArray(trip.days) ? trip.days : [],
+          isFavorite: Boolean(trip.isFavorite),
+          createdAt: convertTimestamp(trip.createdAt),
+          updatedAt: convertTimestamp(trip.updatedAt || trip.createdAt)
+        } as Trip;
+      });
+      
+      setDashboardState(prev => ({
+        ...prev,
+        trips: formattedTrips,
+        filteredTrips: formattedTrips,
+        loading: false,
+        error: null
+      }));
+    } catch (error) {
+      console.error('Error fetching trips:', error);
+      setDashboardState(prev => ({
+        ...prev,
+        error: 'Failed to load trips',
+        loading: false
+      }));
+    }
+  }, [user]);
+
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push('/');
     } else if (user) {
+      const handleFilterClick = (filter: string) => {
+        setDashboardState(prev => ({
+          ...prev,
+          activeFilter: filter,
+          filters: {
+            ...prev.filters,
+            type: filter === 'all' ? null : filter as 'leisure' | 'business' | 'adventure' | 'family'
+          }
+        }));
+      };
+
+      // Set user profile
       setDashboardState(prev => ({
         ...prev,
         userProfile: {
@@ -201,16 +293,18 @@ export default function Dashboard() {
           name: user.displayName || 'User',
           email: user.email || '',
           profilePicture: user.photoURL || '/default-avatar.png'
-        },
-        filteredTrips: prev.trips // Initialize filtered trips with all trips
+        }
       }));
+      
+      // Fetch trips
+      fetchTrips();
     }
-  }, [user, loading, router]);
+  }, [user, authLoading, router, fetchTrips]);
 
-  if (loading) {
+  if (authLoading || dashboardState.loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
@@ -296,13 +390,13 @@ export default function Dashboard() {
               {['all', 'adventure', 'leisure', 'hiking', 'business', 'family'].map((filter) => (
                 <button
                   key={filter}
-                  onClick={() => handleFilterTrips(filter === 'all' ? null : filter as TripType, dashboardState.filters.location)}
+                  onClick={() => handleFilterTrips(filter === 'all' ? null : filter as unknown as TripType, dashboardState.filters.location)}
                   className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                    (filter === 'all' && !dashboardState.filters.type) || dashboardState.filters.type === filter
-                      ? 'bg-indigo-100 text-indigo-800'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
+                                      dashboardState.filters.type === (filter === 'all' ? null : filter as unknown as TripType)
+                    ? 'bg-indigo-100 text-indigo-800'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
                   {filter.charAt(0).toUpperCase() + filter.slice(1)}
                 </button>
               ))}
@@ -350,7 +444,7 @@ export default function Dashboard() {
                       {trip.type.charAt(0).toUpperCase() + trip.type.slice(1)}
                     </span>
                     <button 
-                      onClick={() => handleToggleFavorite(trip.id)}
+                      onClick={() => toggleFavorite(trip.id)}
                       className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
                     >
                       Favorite

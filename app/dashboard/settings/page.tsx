@@ -1,7 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { FiUser, FiMail, FiPhone, FiMapPin, FiLock, FiBell, FiMoon, FiSun } from 'react-icons/fi';
+import { useAuth } from '@/contexts/AuthContext';
+import { getFirestoreDb } from '@/firebase/config';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { useEffect, useState } from 'react';
+import { FiUser, FiMail, FiPhone, FiMapPin, FiLock, FiBell, FiMoon, FiSun, FiSettings } from 'react-icons/fi';
 
 export default function SettingsPage() {
   const [darkMode, setDarkMode] = useState(false);
@@ -9,165 +12,177 @@ export default function SettingsPage() {
   const [location, setLocation] = useState('New York, USA');
   const [phone, setPhone] = useState('+1 (555) 123-4567');
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    // TODO: Save settings to Firestore
-    alert('Settings saved!');
-  };
-
-  return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
-        <p className="text-gray-600">Manage your account preferences and settings</p>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border-2 border-gray-200 overflow-hidden">
-        <div className="p-6 border-b-2 border-gray-200">
-          <h2 className="text-xl font-semibold text-gray-800">Profile Information</h2>
-          <p className="text-gray-500 text-sm mt-1">Update your account details</p>
-        </div>
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const { user } = useAuth();
+  
+  useEffect(() => {
+    const fetchSettings = async () => {
+      if (!user?.uid) return;
+      
+      setLoading(true);
+      try {
+        const db = getFirestoreDb();
+        const userDoc = await getDoc(doc(db, 'users', user.uid));
         
-        <form onSubmit={handleSave} className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                Full Name
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiUser className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  id="name"
-                  className="block w-full pl-10 pr-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="John Doe"
-                  defaultValue="John Doe"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email Address
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiMail className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type="email"
-                  id="email"
-                  className="block w-full pl-10 pr-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="john@example.com"
-                  defaultValue="john@example.com"
-                  disabled
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiPhone className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type="tel"
-                  id="phone"
-                  className="block w-full pl-10 pr-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="+1 (555) 000-0000"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
-                Home Location
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FiMapPin className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  id="location"
-                  className="block w-full pl-10 pr-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="City, Country"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-4 border-t-2 border-gray-200">
-            <h3 className="text-lg font-medium text-gray-800 mb-4">Preferences</h3>
-            
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setEmail(userData.email || '');
+          setPhone(userData.phone || '+1 (555) 123-4567');
+          setLocation(userData.location || 'New York, USA');
+          setDarkMode(userData.darkMode || false);
+          setNotifications(userData.notifications !== false);
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchSettings();
+  }, [user]);
+  
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.uid) return;
+    
+    setLoading(true);
+    try {
+      const db = getFirestoreDb();
+      await updateDoc(doc(db, 'users', user.uid), {
+        email,
+        phone,
+        location,
+        darkMode,
+        notifications,
+        updatedAt: new Date()
+      });
+      alert('Settings saved successfully!');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      alert('Failed to save settings. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return (
+    <div className="container mx-auto p-6 max-w-3xl">
+      <h1 className="text-3xl font-bold mb-8 text-gray-800 dark:text-white">Account Settings</h1>
+      
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      ) : (
+        <form onSubmit={handleSave} className="space-y-6">
+          <div className="bg-white dark:bg-gray-800 shadow-lg rounded-xl p-6 border border-gray-300 dark:border-gray-600">
+            <h2 className="text-xl font-semibold mb-4 flex items-center text-gray-800 dark:text-white">
+              <FiUser className="mr-2 text-indigo-600" />
+              Personal Information
+            </h2>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-gray-700">Dark Mode</span>
-                  <span className="text-sm text-gray-500">Switch between light and dark theme</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDarkMode(!darkMode)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
-                    darkMode ? 'bg-indigo-600' : 'bg-gray-200'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      darkMode ? 'translate-x-6' : 'translate-x-1'
-                    }`}
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Email</label>
+                <div className="flex items-center border-2 border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus-within:border-indigo-500 transition-colors">
+                  <FiMail className="mr-2 text-indigo-500" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-transparent outline-none dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+                    placeholder="Your email"
                   />
-                </button>
+                </div>
               </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-gray-700">Email Notifications</span>
-                  <span className="text-sm text-gray-500">Receive email updates</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setNotifications(!notifications)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
-                    notifications ? 'bg-indigo-600' : 'bg-gray-200'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      notifications ? 'translate-x-6' : 'translate-x-1'
-                    }`}
+              
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Phone</label>
+                <div className="flex items-center border-2 border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus-within:border-indigo-500 transition-colors">
+                  <FiPhone className="mr-2 text-indigo-500" />
+                  <input
+                    type="text"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="w-full bg-transparent outline-none dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+                    placeholder="Your phone number"
                   />
-                </button>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300">Location</label>
+                <div className="flex items-center border-2 border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus-within:border-indigo-500 transition-colors">
+                  <FiMapPin className="mr-2 text-indigo-500" />
+                  <input
+                    type="text"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className="w-full bg-transparent outline-none dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+                    placeholder="Your location"
+                  />
+                </div>
               </div>
             </div>
           </div>
-
-          <div className="pt-6 border-t-2 border-gray-200 flex justify-end space-x-3">
-            <button
-              type="button"
-              className="px-4 py-2.5 border-2 border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              Cancel
-            </button>
+          
+          <div className="bg-white dark:bg-gray-800 shadow-lg rounded-xl p-6 border border-gray-300 dark:border-gray-600">
+            <h2 className="text-xl font-semibold mb-4 flex items-center text-gray-800 dark:text-white">
+              <FiSettings className="mr-2 text-indigo-600" />
+              Preferences
+            </h2>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                <div className="flex items-center">
+                  {darkMode ? <FiMoon className="mr-2 text-indigo-500" /> : <FiSun className="mr-2 text-amber-500" />}
+                  <span className="font-medium text-gray-800 dark:text-white">Dark Mode</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={darkMode}
+                    onChange={() => setDarkMode(!darkMode)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                </label>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                <div className="flex items-center">
+                  <FiBell className={`mr-2 ${notifications ? 'text-indigo-500' : 'text-gray-400'}`} />
+                  <span className="font-medium text-gray-800 dark:text-white">Notifications</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notifications}
+                    onChange={() => setNotifications(!notifications)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                </label>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex justify-end">
             <button
               type="submit"
-              className="px-6 py-2.5 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-5 rounded-lg flex items-center space-x-2 shadow-md hover:shadow-lg transition-all duration-200"
+              disabled={loading}
             >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+              ) : (
+                <FiLock className="mr-2" />
+              )}
               Save Changes
             </button>
           </div>
         </form>
-      </div>
+      )}
     </div>
   );
 }

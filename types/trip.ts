@@ -6,18 +6,21 @@ export interface TripDay {
   activities: string[];
 }
 
-export interface Trip {
-  id: string;
+export interface TripFormData {
   title: string;
   description: string;
   location: string;
   startDate: string;
   endDate: string;
   type: TripType;
-  imageUrl: string;
+  imageUrl?: string;
+}
+
+export interface Trip extends TripFormData {
+  id: string;
   saved: number;
   days: TripDay[];
-  isFavorite?: boolean;
-  createdAt?: any; // Firestore Timestamp
-  updatedAt?: any; // Firestore Timestamp
+  isFavorite: boolean;
+  createdAt: string;
+  updatedAt: string;
 }

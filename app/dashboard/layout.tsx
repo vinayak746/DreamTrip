@@ -98,7 +98,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       {/* New Trip Modal */}
-      {showNewTripModal && (
+      {/* {showNewTripModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6">
@@ -115,13 +115,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 Start planning your perfect trip by filling in the details below.
               </p>
               {/* Trip form will be rendered here */}
-              <div className="h-64 flex items-center justify-center bg-gray-100 rounded-lg border-2 border-dashed border-gray-400">
+              {/* <div className="h-64 flex items-center justify-center bg-gray-100 rounded-lg border-2 border-dashed border-gray-400">
                 <p className="text-gray-500">Trip form will appear here</p>
               </div>
             </div>
           </div>
         </div>
-      )}
+      )} */} 
     </div>
   );
 }

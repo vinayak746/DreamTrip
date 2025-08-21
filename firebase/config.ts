@@ -13,6 +13,7 @@ import {
   browserSessionPersistence
 } from 'firebase/auth';
 import { getFirestore, Firestore, collection, doc, setDoc, getDoc, getDocs, query, where, updateDoc, deleteDoc, addDoc, Timestamp, DocumentData, QueryDocumentSnapshot, DocumentSnapshot } from 'firebase/firestore';
+import type { Trip } from '@/types/trip';
 
 console.log('Initializing Firebase...');
 
@@ -74,10 +75,27 @@ const initializeFirebase = async (): Promise<{ app: FirebaseApp | null; auth: Au
 };
 
 // Initialize Firebase immediately when this module is imported
-const firebasePromise = initializeFirebase();
+let firebaseInitialized = false;
+let firebaseInitializationError: Error | null = null;
+
+const firebasePromise = (async () => {
+  try {
+    const result = await initializeFirebase();
+    firebaseInitialized = true;
+    return result;
+  } catch (error) {
+    console.error('Firebase initialization failed:', error);
+    firebaseInitializationError = error as Error;
+    throw error;
+  }
+})();
 
 // Initialize Google Auth Provider
 const googleProvider = new GoogleAuthProvider();
+
+googleProvider.setCustomParameters({
+  prompt: 'select_account',
+});
 
 // Export auth methods
 export { 
@@ -89,6 +107,11 @@ export {
   type User,
   firebasePromise
 };
+
+// Helper function to check if Firebase is initialized
+export const isFirebaseInitialized = () => firebaseInitialized;
+
+export const getFirebaseInitializationError = () => firebaseInitializationError;
 
 export const getFirebaseAuth = (): Auth => {
   if (typeof window === 'undefined') {
