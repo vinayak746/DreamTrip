@@ -3,93 +3,72 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import DashboardHeader from './components/DashboardHeader';
-import SearchAndFilter, { TripType } from './components/SearchAndFilter';
-import ItineraryCard from './components/ItineraryCard';
+import { FiSearch, FiPlus, FiMapPin, FiCalendar, FiClock, FiFilter } from 'react-icons/fi';
+import TripCard from './components/TripCard';
 
-export interface Activity {
-  id: string;
-  name: string;
-  date: string;
-  time: string;
-  location: string;
-  notes: string;
-  imageUrl?: string;
-}
-
-export interface Itinerary {
+interface Trip {
   id: string;
   title: string;
-  destination: string;
+  location: string;
   startDate: string;
   endDate: string;
-  type: TripType;
-  description: string;
-  activities: Activity[];
-  isFavorite: boolean;
-  coverImage?: string;
+  imageUrl: string;
+  type: 'leisure' | 'business' | 'adventure';
 }
 
 export default function DashboardContent() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [tripTypeFilter, setTripTypeFilter] = useState<TripType | 'all'>('all');
-  const [itineraries, setItineraries] = useState<Itinerary[]>([
+  const [activeFilter, setActiveFilter] = useState('all');
+  
+  // Mock data - will be replaced with Firestore data
+  const [trips, setTrips] = useState<Trip[]>([
     {
       id: '1',
-      title: 'Summer Vacation in Bali',
-      destination: 'Bali, Indonesia',
+      title: 'Summer Getaway',
+      location: 'Bali, Indonesia',
       startDate: '2024-06-15',
       endDate: '2024-06-25',
       type: 'leisure',
-      description: 'A relaxing 10-day trip to enjoy the beaches and culture of Bali',
-      activities: [
-        {
-          id: 'a1',
-          name: 'Visit Uluwatu Temple',
-          date: '2024-06-16',
-          time: '14:00',
-          location: 'Uluwatu',
-          notes: 'Watch the Kecak dance at sunset',
-          imageUrl: '/bali-temple.jpg'
-        }
-      ],
-      isFavorite: true,
-      coverImage: '/bali-cover.jpg'
+      imageUrl: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
     },
     {
       id: '2',
       title: 'Business Conference',
-      destination: 'New York, USA',
+      location: 'New York, USA',
       startDate: '2024-07-10',
       endDate: '2024-07-15',
       type: 'business',
-      description: 'Attending the annual tech conference',
-      activities: [],
-      isFavorite: false
+      imageUrl: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+    },
+    {
+      id: '3',
+      title: 'Mountain Adventure',
+      location: 'Swiss Alps',
+      startDate: '2024-08-05',
+      endDate: '2024-08-12',
+      type: 'adventure',
+      imageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
     }
   ]);
 
-  const toggleFavorite = (id: string) => {
-    setItineraries(itineraries.map(itinerary => 
-      itinerary.id === id 
-        ? { ...itinerary, isFavorite: !itinerary.isFavorite } 
-        : itinerary
-    ));
+  const handleViewDetails = (tripId: string) => {
+    // TODO: Navigate to trip details page
+    console.log('Viewing details for trip:', tripId);
   };
-
-  const filteredItineraries = itineraries.filter(itinerary => {
-    const matchesSearch = itinerary.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         itinerary.destination.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = tripTypeFilter === 'all' || itinerary.type === tripTypeFilter;
-    return matchesSearch && matchesType;
-  });
 
   const handleCreateNew = () => {
-    // TODO: Implement create new itinerary
-    console.log('Create new itinerary');
+    // TODO: Implement create new trip
+    console.log('Create new trip');
   };
+
+  const filteredTrips = trips.filter(trip => {
+    const matchesSearch = trip.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         trip.location.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = activeFilter === 'all' || trip.type === activeFilter;
+    return matchesSearch && matchesType;
+  });
 
   if (!user) {
     return null;
@@ -97,68 +76,82 @@ export default function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DashboardHeader 
-        user={user} 
-        onLogout={logout} 
-      />
+      <header className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold text-gray-900">My Trips</h1>
+            <button
+              onClick={handleCreateNew}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <FiPlus className="mr-2 h-4 w-4" />
+              New Trip
+            </button>
+          </div>
+        </div>
+      </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-        <SearchAndFilter 
-          searchQuery={searchQuery}
-          tripTypeFilter={tripTypeFilter}
-          onSearchChange={setSearchQuery}
-          onFilterChange={setTripTypeFilter}
-          onCreateNew={handleCreateNew}
-        />
-
-        {filteredItineraries.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="mx-auto h-12 w-12 text-gray-400">
-              <svg
-                className="h-12 w-12 mx-auto text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1}
-                  d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-                />
-              </svg>
+        {/* Search and Filter */}
+        <div className="mb-8">
+          <div className="relative mb-4">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <FiSearch className="h-5 w-5 text-gray-400" />
             </div>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No itineraries found</h3>
-            <p className="mt-1 text-sm text-gray-500">Get started by creating a new itinerary.</p>
+            <input
+              type="text"
+              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              placeholder="Search trips..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          
+          <div className="flex space-x-2 overflow-x-auto pb-2">
+            {['all', 'leisure', 'business', 'adventure'].map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setActiveFilter(filter as any)}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                  activeFilter === filter
+                    ? 'bg-indigo-100 text-indigo-800'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {filter.charAt(0).toUpperCase() + filter.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {filteredTrips.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-xl shadow-sm p-8">
+            <div className="mx-auto h-16 w-16 text-gray-400 mb-4">
+              <FiMapPin className="h-16 w-16 mx-auto" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900">No trips found</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              {searchQuery 
+                ? 'No trips match your search. Try a different search term.'
+                : 'Get started by creating your first trip.'}
+            </p>
             <div className="mt-6">
               <button
                 onClick={handleCreateNew}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
-                <svg
-                  className="-ml-1 mr-2 h-4 w-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"
-                  />
-                </svg>
-                New Itinerary
+                <FiPlus className="-ml-1 mr-2 h-4 w-4" />
+                New Trip
               </button>
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredItineraries.map((itinerary) => (
-              <ItineraryCard
-                key={itinerary.id}
-                {...itinerary}
-                onToggleFavorite={toggleFavorite}
+            {filteredTrips.map((trip) => (
+              <TripCard
+                key={trip.id}
+                {...trip}
+                onViewDetails={handleViewDetails}
               />
             ))}
           </div>
@@ -166,5 +159,4 @@ export default function DashboardContent() {
       </main>
     </div>
   );
-
 }
