@@ -25,15 +25,15 @@ export default function ProfilePage() {
           <div className="flex items-center">
             <div className="relative">
               <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center text-2xl font-bold">
-                {userData.name.charAt(0)}
+                {user?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}
               </div>
               <button className="absolute bottom-0 right-0 bg-white p-1.5 rounded-full text-indigo-600 shadow-md">
                 <FiEdit2 size={16} />
               </button>
             </div>
             <div className="ml-6">
-              <h1 className="text-2xl font-bold">{userData.name}</h1>
-              <p>Member since {userData.memberSince}</p>
+              <h1 className="text-2xl font-bold">{user?.displayName || 'User'}</h1>
+              <p>Member since {user?.metadata?.creationTime ? new Date(user.metadata.creationTime).getFullYear() : 'Unknown'}</p>
             </div>
           </div>
         </div>
@@ -50,7 +50,7 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Email</p>
-                    <p className="font-medium">{userData.email}</p>
+                    <p className="font-medium">{user?.email || 'Not provided'}</p>
                   </div>
                 </div>
                 <div className="flex items-center p-3 bg-gray-50 rounded-lg border-2 border-gray-100">
@@ -59,39 +59,43 @@ export default function ProfilePage() {
                   </div>
                   <div>
                     <p className="text-xs text-gray-500">Phone</p>
-                    <p className="font-medium">{userData.phone}</p>
+                    <p className="font-medium">{user?.phoneNumber || 'Not provided'}</p>
                   </div>
                 </div>
                 <div className="flex items-center p-3 bg-gray-50 rounded-lg border-2 border-gray-100">
                   <div className="p-2 bg-purple-100 rounded-lg mr-3">
-                    <FiMapPin className="text-purple-600" />
+                    <FiUser className="text-purple-600" />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">Location</p>
-                    <p className="font-medium">{userData.location}</p>
+                    <p className="text-xs text-gray-500">User ID</p>
+                    <p className="font-medium text-xs">{user?.uid || 'Not available'}</p>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="space-y-4">
-              <h2 className="text-xl font-semibold">Travel Stats</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-indigo-50 rounded-xl border-2 border-indigo-100 text-center">
-                  <p className="text-3xl font-bold text-indigo-600">{userData.trips}</p>
-                  <p className="text-sm text-gray-600">Trips</p>
+              <h2 className="text-xl font-semibold">Account Information</h2>
+              <div className="space-y-4">
+                <div className="p-4 bg-indigo-50 rounded-xl border-2 border-indigo-100">
+                  <p className="text-sm text-gray-600">Email Verified</p>
+                  <p className="text-lg font-bold text-indigo-600">{user?.emailVerified ? 'Yes' : 'No'}</p>
                 </div>
-                <div className="p-4 bg-green-50 rounded-xl border-2 border-green-100 text-center">
-                  <p className="text-3xl font-bold text-green-600">{userData.reviews}</p>
-                  <p className="text-sm text-gray-600">Reviews</p>
+                <div className="p-4 bg-green-50 rounded-xl border-2 border-green-100">
+                  <p className="text-sm text-gray-600">Last Sign In</p>
+                  <p className="text-sm font-medium text-green-600">
+                    {user?.metadata?.lastSignInTime ? new Date(user.metadata.lastSignInTime).toLocaleDateString() : 'Unknown'}
+                  </p>
                 </div>
-                <div className="p-4 bg-yellow-50 rounded-xl border-2 border-yellow-100 text-center">
-                  <p className="text-3xl font-bold text-yellow-600">12</p>
-                  <p className="text-sm text-gray-600">Wishlist</p>
+                <div className="p-4 bg-yellow-50 rounded-xl border-2 border-yellow-100">
+                  <p className="text-sm text-gray-600">Provider</p>
+                  <p className="text-sm font-medium text-yellow-600">
+                    {user?.providerData?.[0]?.providerId || 'Unknown'}
+                  </p>
                 </div>
-                <div className="p-4 bg-purple-50 rounded-xl border-2 border-purple-100 text-center">
-                  <p className="text-3xl font-bold text-purple-600">4.8</p>
-                  <p className="text-sm text-gray-600">Rating</p>
+                <div className="p-4 bg-purple-50 rounded-xl border-2 border-purple-100">
+                  <p className="text-sm text-gray-600">Anonymous</p>
+                  <p className="text-lg font-bold text-purple-600">{user?.isAnonymous ? 'Yes' : 'No'}</p>
                 </div>
               </div>
             </div>

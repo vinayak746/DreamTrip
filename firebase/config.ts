@@ -12,6 +12,7 @@ import {
   browserLocalPersistence,
   browserSessionPersistence
 } from 'firebase/auth';
+import { getFirestore, Firestore, collection, doc, setDoc, getDoc, getDocs, query, where, updateDoc, deleteDoc, addDoc, Timestamp, DocumentData, QueryDocumentSnapshot, DocumentSnapshot } from 'firebase/firestore';
 
 console.log('Initializing Firebase...');
 
@@ -28,6 +29,7 @@ measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 // Initialize Firebase
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
+let db: Firestore | null = null;
 
 const initializeFirebase = async (): Promise<{ app: FirebaseApp | null; auth: Auth | null }> => {
   if (typeof window === 'undefined') {
@@ -45,9 +47,13 @@ const initializeFirebase = async (): Promise<{ app: FirebaseApp | null; auth: Au
       
       console.log('Firebase initialized successfully');
       
+      // Initialize Firestore
+      const firestore = getFirestore(firebaseApp);
+      
       // Update module-level variables
       app = firebaseApp;
       auth = firebaseAuth;
+      db = firestore;
       
       return { app, auth };
     } else {
@@ -106,6 +112,78 @@ export const getFirebaseApp = (): FirebaseApp => {
   }
   
   return app;
+};
+
+// Firestore functions
+export const getFirestoreDb = (): Firestore => {
+  if (!db) {
+    throw new Error('Firestore not initialized');
+  }
+  return db;
+};
+
+// Trip collection reference
+const getTripsCollection = (userId: string) => {
+  return collection(getFirestoreDb(), 'users', userId, 'trips');
+};
+
+// Trip operations
+export const tripService = {
+  // Create a new trip
+  createTrip: async (userId: string, tripData: Omit<Trip, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const tripsRef = getTripsCollection(userId);
+    const newTrip = {
+      ...tripData,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    };
+    const docRef = await addDoc(tripsRef, newTrip);
+    return { id: docRef.id, ...newTrip };
+  },
+
+  // Get all trips for a user
+  getTrips: async (userId: string): Promise<Trip[]> => {
+    const tripsRef = getTripsCollection(userId);
+    const snapshot = await getDocs(tripsRef);
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Trip));
+  },
+
+  // Get a single trip
+  getTrip: async (userId: string, tripId: string): Promise<Trip | null> => {
+    const tripRef = doc(getFirestoreDb(), 'users', userId, 'trips', tripId);
+    const docSnap = await getDoc(tripRef);
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as Trip;
+    }
+    return null;
+  },
+
+  // Update a trip
+  updateTrip: async (userId: string, tripId: string, updates: Partial<Trip>) => {
+    const tripRef = doc(getFirestoreDb(), 'users', userId, 'trips', tripId);
+    await updateDoc(tripRef, {
+      ...updates,
+      updatedAt: Timestamp.now()
+    });
+  },
+
+  // Delete a trip
+  deleteTrip: async (userId: string, tripId: string) => {
+    const tripRef = doc(getFirestoreDb(), 'users', userId, 'trips', tripId);
+    await deleteDoc(tripRef);
+  },
+
+  // Toggle favorite status
+  toggleFavorite: async (userId: string, tripId: string, currentStatus: boolean) => {
+    const tripRef = doc(getFirestoreDb(), 'users', userId, 'trips', tripId);
+    await updateDoc(tripRef, {
+      isFavorite: !currentStatus,
+      updatedAt: Timestamp.now()
+    });
+  }
 };
 
 export default getFirebaseApp;
