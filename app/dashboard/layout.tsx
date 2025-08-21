@@ -1,71 +1,120 @@
 'use client';
 
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { FiHome, FiSettings, FiPlus, FiX } from 'react-icons/fi';
 import Link from 'next/link';
-import { FiHome, FiCompass, FiCalendar, FiUser, FiPlus } from 'react-icons/fi';
+
+type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isActive = (path: string) => pathname === path;
-  const navItems = [
-    { href: '/dashboard', icon: FiHome, label: 'Home' },
-    { href: '/dashboard/explore', icon: FiCompass, label: 'Explore' },
-    { href: '/dashboard/bookings', icon: FiCalendar, label: 'Bookings' },
-    { href: '/dashboard/profile', icon: FiUser, label: 'Profile' },
-  ];
+  const [showNewTripModal, setShowNewTripModal] = useState(false);
+
+  const isActive = (path: string) => {
+    return pathname === path ? 'text-indigo-600' : 'text-gray-600';
+  };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <div className="hidden md:flex flex-col w-64 bg-white border-r-2 border-gray-200">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold text-indigo-600">DreamTrip</h1>
-        </div>
-        <nav className="flex-1 px-4 space-y-1">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center px-4 py-3 rounded-lg ${
-                isActive(item.href) ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'
-              }`}
+    <div className="min-h-screen bg-gray-50">
+      {/* Desktop Sidebar */}
+      <div className="hidden md:flex fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200 p-4">
+        <div className="flex flex-col w-full">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold text-indigo-700">DreamTrip</h1>
+          </div>
+          
+          <nav className="space-y-2">
+            <Link 
+              href="/dashboard" 
+              className={`flex items-center px-4 py-2.5 rounded-lg ${isActive('/dashboard') ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
             >
-              <item.icon className="mr-3" size={20} />
-              {item.label}
+              <FiHome className="mr-3" size={20} />
+              Dashboard
             </Link>
-          ))}
-        </nav>
-        <div className="p-4">
-          <button className="w-full flex items-center justify-center px-4 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700">
-            <FiPlus className="mr-2" />
-            New Trip
+            
+            <Link 
+              href="/dashboard/settings" 
+              className={`flex items-center px-4 py-2.5 rounded-lg ${isActive('/dashboard/settings') ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+            >
+              <FiSettings className="mr-3" size={20} />
+              Settings
+            </Link>
+          </nav>
+          
+          <div className="mt-auto pt-4">
+            <button 
+              onClick={() => setShowNewTripModal(true)}
+              className="w-full flex items-center justify-center px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              <FiPlus className="mr-2" size={18} />
+              New Trip
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-2">
+        <div className="flex justify-around items-center">
+          <Link 
+            href="/dashboard" 
+            className={`flex flex-col items-center p-2 rounded-lg ${isActive('/dashboard') ? 'text-indigo-600' : 'text-gray-600'}`}
+          >
+            <FiHome size={20} />
+            <span className="text-xs mt-1">Home</span>
+          </Link>
+          
+          <button 
+            onClick={() => setShowNewTripModal(true)}
+            className="flex flex-col items-center p-2 text-indigo-600"
+          >
+            <div className="bg-indigo-600 text-white p-2 rounded-full -mt-6 mb-1 shadow-md">
+              <FiPlus size={20} />
+            </div>
+            <span className="text-xs">New Trip</span>
           </button>
+          
+          <Link 
+            href="/dashboard/settings" 
+            className={`flex flex-col items-center p-2 rounded-lg ${isActive('/dashboard/settings') ? 'text-indigo-600' : 'text-gray-600'}`}
+          >
+            <FiSettings size={20} />
+            <span className="text-xs mt-1">Settings</span>
+          </Link>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          {children}
-        </main>
+      <div className="md:pl-64 pb-20 md:pb-0">
+        {children}
       </div>
 
-      {/* Mobile Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 flex justify-around py-2 px-4">
-        {navItems.map((item) => (
-          <Link 
-            key={item.href} 
-            href={item.href}
-            className="flex flex-col items-center p-2 text-gray-700"
-          >
-            <item.icon 
-              size={20} 
-              className={isActive(item.href) ? 'text-indigo-600' : ''} 
-            />
-            <span className="text-xs mt-1">{item.label}</span>
-          </Link>
-        ))}
-      </div>
+      {/* New Trip Modal */}
+      {showNewTripModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6 border-b-2 border-gray-300 pb-4">
+                <h2 className="text-2xl font-bold text-gray-900">Plan Your Trip</h2>
+                <button 
+                  onClick={() => setShowNewTripModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <FiX size={24} />
+                </button>
+              </div>
+              <p className="text-gray-600 mb-6">
+                Start planning your perfect trip by filling in the details below.
+              </p>
+              {/* Trip form will be rendered here */}
+              <div className="h-64 flex items-center justify-center bg-gray-100 rounded-lg border-2 border-dashed border-gray-400">
+                <p className="text-gray-500">Trip form will appear here</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
