@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, FormEvent, useContext } from 'react';
+import { useState, FormEvent, useContext, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { AuthContext } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Icons
 const GoogleIcon = () => (
@@ -327,19 +327,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </div>
-    </div>
-                type="button"
-                onClick={handleAnonymousLogin}
-                disabled={authLoading}
-                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-              >
-                <GuestIcon />
-                <span className="ml-2">Guest</span>
-              </button>
-            </div>
-          </div>
-        </form>
       </div>
     </div>
   );
