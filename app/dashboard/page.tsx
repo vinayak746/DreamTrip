@@ -317,7 +317,10 @@ export default function Dashboard() {
               <div key={trip.id} className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                 <div className="relative h-48">
                   <img 
-                    src={trip.imageUrl} 
+                    src={trip.imageUrl
+
+                      || ""
+                    } 
                     alt={trip.title} 
                     className="w-full h-full object-cover"
                   />
