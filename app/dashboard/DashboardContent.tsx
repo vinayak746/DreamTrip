@@ -2,9 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { FiSearch, FiPlus, FiMapPin } from 'react-icons/fi';
 import { useAuth } from '@/contexts/AuthContext';
-import { FiSearch, FiPlus, FiMapPin, FiCalendar, FiClock, FiFilter } from 'react-icons/fi';
 import TripCard from './components/TripCard';
+import NewTripModal from './components/NewTripModal';
+
+type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
 
 interface Trip {
   id: string;
@@ -13,43 +16,66 @@ interface Trip {
   startDate: string;
   endDate: string;
   imageUrl: string;
-  type: 'leisure' | 'business' | 'adventure';
+  type: TripType;
+  days?: Array<{
+    day: number;
+    location: string;
+    activities: string[];
+  }>;
+  saved?: number;
 }
 
 export default function DashboardContent() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [showNewTripModal, setShowNewTripModal] = useState(false);
   
   // Mock data - will be replaced with Firestore data
   const [trips, setTrips] = useState<Trip[]>([
     {
       id: '1',
-      title: 'Summer Getaway',
-      location: 'Bali, Indonesia',
-      startDate: '2024-06-15',
-      endDate: '2024-06-25',
-      type: 'leisure',
-      imageUrl: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+      title: '10-Day Japan Adventure',
+      location: 'Tokyo, Kyoto, Osaka',
+      startDate: '2024-11-15',
+      endDate: '2024-11-25',
+      type: 'adventure',
+      imageUrl: 'https://images.unsplash.com/photo-1492571350019-22de08371fd3?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+      saved: 124,
+      days: [
+        { day: 1, location: 'Tokyo', activities: ['Shibuya Crossing', 'Ramen tasting'] },
+        { day: 2, location: 'Tokyo', activities: ['Ghibli Museum', 'Ueno Park'] },
+        { day: 3, location: 'Kyoto', activities: ['Fushimi Inari Shrine'] },
+      ]
     },
     {
       id: '2',
-      title: 'Business Conference',
-      location: 'New York, USA',
-      startDate: '2024-07-10',
-      endDate: '2024-07-15',
-      type: 'business',
-      imageUrl: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+      title: 'Parisian Getaway',
+      location: 'Paris, France',
+      startDate: '2024-10-05',
+      endDate: '2024-10-10',
+      type: 'leisure',
+      imageUrl: 'https://images.unsplash.com/photo-1431274172761-fca41d930114?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+      saved: 210,
+      days: [
+        { day: 1, location: 'Paris', activities: ['Eiffel Tower', 'Seine River Cruise'] },
+        { day: 2, location: 'Paris', activities: ['Louvre Museum', 'Notre-Dame'] },
+      ]
     },
     {
       id: '3',
-      title: 'Mountain Adventure',
-      location: 'Swiss Alps',
-      startDate: '2024-08-05',
-      endDate: '2024-08-12',
-      type: 'adventure',
-      imageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
+      title: 'Mountain Hiking',
+      location: 'Swiss Alps, Switzerland',
+      startDate: '2024-09-10',
+      endDate: '2024-09-18',
+      type: 'hiking',
+      imageUrl: 'https://images.unsplash.com/photo-1483728642387-6c3bdd6de93a?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+      saved: 87,
+      days: [
+        { day: 1, location: 'Zermatt', activities: ['Arrival', 'Acclimatization'] },
+        { day: 2, location: 'Matterhorn', activities: ['Hike to Hörnli Hut'] },
+      ]
     }
   ]);
 
@@ -58,9 +84,20 @@ export default function DashboardContent() {
     console.log('Viewing details for trip:', tripId);
   };
 
-  const handleCreateNew = () => {
-    // TODO: Implement create new trip
-    console.log('Create new trip');
+  const handleCreateNewTrip = (tripData: {
+    title: string;
+    location: string;
+    startDate: string;
+    endDate: string;
+    type: TripType;
+  }) => {
+    // In a real app, this would save to Firestore
+    const newTrip: Trip = {
+      id: Date.now().toString(),
+      ...tripData,
+      imageUrl: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+    };
+    setTrips([newTrip, ...trips]);
   };
 
   const filteredTrips = trips.filter(trip => {
@@ -76,14 +113,21 @@ export default function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* New Trip Modal */}
+      <NewTripModal
+        isOpen={showNewTripModal}
+        onClose={() => setShowNewTripModal(false)}
+        onSubmit={handleCreateNewTrip}
+      />
+
       {/* Header with Search */}
       <div className="bg-indigo-600 pb-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
-            <h1 className="text-2xl font-bold text-white">My Trips</h1>
+            <h1 className="text-2xl font-bold text-white">DreamTrip</h1>
             <button
-              onClick={handleCreateNew}
-              className="inline-flex items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-indigo-700 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              onClick={() => setShowNewTripModal(true)}
+              className="inline-flex items-center px-4 py-2.5 border-2 border-white text-sm font-medium rounded-lg shadow-sm text-white bg-transparent hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
             >
               <FiPlus className="mr-2 h-4 w-4" />
               New Trip
@@ -141,8 +185,8 @@ export default function DashboardContent() {
             </p>
             <div>
               <button
-                onClick={handleCreateNew}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                onClick={() => setShowNewTripModal(true)}
+                className="inline-flex items-center px-6 py-3 border-2 border-indigo-600 text-base font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
               >
                 <FiPlus className="mr-2 h-5 w-5" />
                 Create New Trip
@@ -151,13 +195,16 @@ export default function DashboardContent() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredTrips.map((trip) => (
-              <TripCard
-                key={trip.id}
-                {...trip}
-                onViewDetails={handleViewDetails}
-              />
-            ))}
+            {filteredTrips.map((trip) => {
+              const { days, saved, ...tripCardProps } = trip;
+              return (
+                <TripCard
+                  key={trip.id}
+                  {...tripCardProps}
+                  onViewDetails={handleViewDetails}
+                />
+              );
+            })}
           </div>
         )}
       </main>
