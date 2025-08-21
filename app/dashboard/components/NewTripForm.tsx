@@ -5,33 +5,41 @@ import { FiX, FiCalendar, FiMapPin, FiImage, FiPlus, FiTrash2 } from 'react-icon
 
 type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
 
+interface TripFormData {
+  title: string;
+  description: string;
+  location: string;
+  startDate: string;
+  endDate: string;
+  type: TripType;
+  imageUrl: string;
+}
+
 interface NewTripFormProps {
   onClose: () => void;
-  onSubmit: (trip: any) => void;
+  onSubmit: (trip: TripFormData) => void;
 }
 
 export default function NewTripForm({ onClose, onSubmit }: NewTripFormProps) {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<TripFormData>({
     title: '',
+    description: '',
     location: '',
     startDate: '',
     endDate: '',
-    type: 'leisure' as TripType,
+    type: 'leisure',
     imageUrl: ''
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({
-      ...formData,
-      saved: 0,
-      days: [{ day: 1, location: formData.location, activities: [''] }]
-    });
+    // The parent component will handle adding the saved and days properties
+    onSubmit(formData);
     onClose();
   };
 
@@ -55,6 +63,18 @@ export default function NewTripForm({ onClose, onSubmit }: NewTripFormProps) {
               onChange={handleChange}
               className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              rows={3}
+              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Tell us about your trip..."
             />
           </div>
 

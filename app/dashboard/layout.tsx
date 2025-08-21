@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { FiHome, FiSettings, FiPlus, FiX } from 'react-icons/fi';
+import { FiHome, FiSettings, FiPlus, FiX, FiHeart } from 'react-icons/fi';
 import Link from 'next/link';
 
 type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
@@ -31,6 +31,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               <FiHome className="mr-3" size={20} />
               Dashboard
+            </Link>
+            <Link 
+              href="/dashboard/favorites" 
+              className={`flex items-center px-4 py-2.5 rounded-lg ${isActive('/dashboard/favorites') ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+            >
+              <FiHeart className="mr-3" size={20} />
+              Favourites
             </Link>
             
             <Link 
