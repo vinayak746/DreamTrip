@@ -9,13 +9,13 @@ import {
   query, 
   where, 
   orderBy,
+  limit,
+  increment,
   serverTimestamp,
   QueryConstraint,
   DocumentData,
   QueryDocumentSnapshot,
-  DocumentSnapshot,
-  limit,
-  increment
+  DocumentSnapshot
 } from 'firebase/firestore';
 import { getFirestoreDb } from '@/firebase/config';
 const db = getFirestoreDb();
