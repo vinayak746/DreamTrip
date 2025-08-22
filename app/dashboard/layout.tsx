@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { FiHome, FiSettings, FiPlus, FiX, FiHeart } from 'react-icons/fi';
+import { FiHome, FiSettings, FiPlus, FiX, FiHeart, FiUser } from 'react-icons/fi';
 import Link from 'next/link';
 
 type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
@@ -41,11 +41,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Link>
             
             <Link 
-              href="/dashboard/settings" 
-              className={`flex items-center px-4 py-2.5 rounded-lg ${isActive('/dashboard/settings') ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+              href="/dashboard/profile" 
+              className={`flex items-center px-4 py-2.5 rounded-lg ${isActive('/dashboard/profile') ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
             >
-              <FiSettings className="mr-3" size={20} />
-              Settings
+              <FiUser className="mr-3" size={20} />
+             Profile
             </Link>
           </nav>
           
@@ -91,11 +91,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
           
           <Link 
-            href="/dashboard/settings" 
-            className={`flex flex-col items-center p-2 rounded-lg ${isActive('/dashboard/settings') ? 'text-indigo-600' : 'text-gray-600'}`}
+            href="/dashboard/profile" 
+            className={`flex flex-col items-center p-2 rounded-lg ${isActive('/dashboard/profile') ? 'text-indigo-600' : 'text-gray-600'}`}
           >
-            <FiSettings size={20} />
-            <span className="text-xs mt-1">Settings</span>
+            <FiUser size={20} />
+            <span className="text-xs mt-1">Profile</span>
           </Link>
         </div>
       </div>

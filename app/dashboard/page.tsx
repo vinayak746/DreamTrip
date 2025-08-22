@@ -529,178 +529,220 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <header className="flex justify-between items-center mb-8">
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Trips</h1>
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => {
-                setTripToEdit(null);
-                updateDashboardState({ showNewTripForm: true });
-              }}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <FiPlus className="mr-2" />
-              New Trip
-            </button>
-            {dashboardState.userProfile && (
-              <div className="relative" ref={profileRef}>
-                <button 
-                  onClick={() => setIsProfileOpen(!isProfileOpen)}
-                  className="flex items-center space-x-2 focus:outline-none"
-                  aria-haspopup="true"
-                  aria-expanded={isProfileOpen}
-                >
-                  <img
-                    src={dashboardState.userProfile.profilePicture || '/default-avatar.png'}
-                    alt={dashboardState.userProfile.name}
-                    className="w-10 h-10 rounded-full border-2 border-indigo-200 hover:border-indigo-300 transition-colors object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = '/default-avatar.png';
-                    }}
-                  />
-                  <FiChevronDown className={`text-gray-500 transition-transform ${isProfileOpen ? 'transform rotate-180' : ''}`} />
-                </button>
-                
-                {isProfileOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-100">
-                    <div className="px-4 py-3 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-900">{dashboardState.userProfile.name}</p>
-                      <p className="text-xs text-gray-500 truncate">{dashboardState.userProfile.email}</p>
-                    </div>
-                    <div className="py-1">
-                      <a
-                        href="/dashboard/profile"
-                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      >
-                        <FiUser className="mr-3" size={16} />
-                        Profile
-                      </a>
-                      <button
-                        onClick={handleSignOut}
-                        className="w-full text-left flex items-center px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                      >
-                        <FiLogOut className="mr-3" size={16} />
-                        Sign out
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </header>
-
-        {/* Edit Trip Form Modal */}
-        {tripToEdit && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold">Edit Trip</h2>
-                  <button 
-                    onClick={() => setTripToEdit(null)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    <FiX size={24} />
-                  </button>
-                </div>
-                <EditTripForm
-                  initialData={tripToEdit}
-                  onSubmit={async (data) => {
-                    const success = await handleUpdateTrip(tripToEdit.id, data);
-                    if (success) {
-                      setTripToEdit(null);
-                    }
-                  }}
-                  onCancel={() => setTripToEdit(null)}
-                  onDelete={() => handleDeleteTrip(tripToEdit.id)}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Filters */}
-        <div className="mb-8 p-4 bg-white rounded-xl shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
-            <div className="relative flex-1">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/30">
+      {/* Header */}
+      <header className="bg-white/80 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">DreamTrip</h1>
+          
+          <div className="flex items-center space-x-6">
+            <div className="relative hidden md:block w-64">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FiMapPin className="text-gray-400" />
+                <FiSearch className="h-4 w-4 text-gray-400" />
               </div>
               <input
                 type="text"
-                placeholder="Search by location..."
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                onChange={(e) => handleFilterTrips(dashboardState.filters.type, e.target.value || null)}
+                className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg bg-white/50 backdrop-blur-sm text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                placeholder="Search destinations..."
+                value={dashboardState.searchQuery}
+                onChange={(e) => updateDashboardState({ searchQuery: e.target.value })}
+                ref={searchInputRef}
               />
             </div>
-            <div className="flex space-x-2 overflow-x-auto pb-2 md:pb-0">
-              {['all', 'adventure', 'leisure', 'hiking', 'business', 'family'].map((filter) => {
-                // Safely cast to TripType if not 'all'
-                const tripType = filter === 'all' ? null : filter as TripType;
-                const isActive = dashboardState.filters.type === tripType;
-                
-                return (
-                  <button
-                    key={filter}
-                    onClick={() => handleFilterTrips(tripType, dashboardState.filters.location)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                      isActive 
-                        ? 'bg-indigo-100 text-indigo-800' 
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                  </button>
-                );
-              })}
+            
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="flex items-center space-x-2 focus:outline-none group"
+              >
+                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium text-sm shadow-sm group-hover:shadow-md transition-all">
+                  {dashboardState.userProfile?.name?.charAt(0).toUpperCase() || 'U'}
+                </div>
+              </button>
+              
+              {isProfileOpen && (
+                <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-xl shadow-lg bg-white/95 backdrop-blur-sm ring-1 ring-black/5 focus:outline-none z-10 overflow-hidden animate-in fade-in-50 slide-in-from-top-2">
+                  <div className="py-1.5 border-b border-gray-100 px-4 py-3">
+                    <p className="text-sm font-medium text-gray-900 truncate">{dashboardState.userProfile?.name || 'User'}</p>
+                    <p className="text-xs text-gray-500 truncate">{dashboardState.userProfile?.email || ''}</p>
+                  </div>
+                  <div className="py-1.5">
+                    <button
+                      onClick={handleSignOut}
+                      className="flex w-full items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50/80 transition-colors"
+                    >
+                      <FiLogOut className="mr-3 h-4 w-4 text-gray-400" />
+                      Sign out
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
+      </header>
 
-        {/* Trips Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTrips.length > 0 ? (
-            filteredTrips.map((trip) => (
-              <TripCard
-                key={trip.id}
-                id={trip.id}
-                title={trip.title}
-                location={trip.location}
-                startDate={trip.startDate}
-                endDate={trip.endDate}
-                description={trip.description}
-                imageUrl={trip.imageUrl || getTripImage(trip.type)}
-                type={trip.type}
-                saved={trip.saved || 0}
-                userId={trip.userId}
-                isFavorite={favoriteTrips.has(trip.id)}
-                onFavoriteToggle={handleToggleFavorite}
-                onEdit={handleEditTrip}
-                onViewDetails={() => setSelectedTrip(trip)}
-              />
-            ))
-          ) : (
-            <div className="col-span-full text-center py-12">
-              <p className="text-gray-500">No trips found. Create a new trip to get started!</p>
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header with filters */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Your Trips</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              {filteredTrips.length} {filteredTrips.length === 1 ? 'trip' : 'trips'} found
+              {dashboardState.searchQuery && ` for "${dashboardState.searchQuery}"`}
+              {dashboardState.activeFilter !== 'all' && ` in ${dashboardState.activeFilter}`}
+            </p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex-1 flex space-x-1 overflow-x-auto pb-1.5 md:pb-0">
+              <button
+                onClick={() => updateDashboardState({ activeFilter: 'all' })}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                  dashboardState.activeFilter === 'all' 
+                    ? 'bg-blue-600 text-white shadow-sm' 
+                    : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                }`}
+              >
+                All Trips
+              </button>
+              {(
+                [
+                  { id: 'leisure' as TripType, label: 'Leisure', icon: '🏖️' },
+                  { id: 'business' as TripType, label: 'Business', icon: '💼' },
+                  { id: 'adventure' as TripType, label: 'Adventure', icon: '🌋' },
+                  { id: 'hiking' as TripType, label: 'Hiking', icon: '🥾' },
+                  { id: 'family' as TripType, label: 'Family', icon: '👨‍👩‍👧‍👦' }
+                ] as const
+              ).map(({ id, label, icon }) => (
+                <button
+                  key={id}
+                  onClick={() => updateDashboardState({ activeFilter: id })}
+                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex items-center space-x-1.5 transition-all ${
+                    dashboardState.activeFilter === id
+                      ? 'bg-blue-50 text-blue-700 border border-blue-100' 
+                      : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+                  }`}
+                >
+                  <span>{icon}</span>
+                  <span>{label}</span>
+                </button>
+              ))}
             </div>
-          )}
+            
+            <button
+              onClick={() => updateDashboardState({ showNewTripForm: true })}
+              className="inline-flex items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all hover:shadow-md"
+            >
+              <FiPlus className="-ml-1 mr-2 h-4 w-4" />
+              New Trip
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* New Trip Modal */}
-      {dashboardState.showNewTripForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <NewTripForm 
-            onClose={() => setDashboardState(prev => ({ ...prev, showNewTripForm: false }))} 
-            onSubmit={handleCreateTrip} 
-          />
-        </div>
-      )}
+        {/* Trip Grid */}
+        {dashboardState.loading ? (
+          <div className="flex flex-col items-center justify-center h-96 rounded-2xl bg-white/50 border border-gray-100">
+            <div className="relative">
+              <div className="h-12 w-12 rounded-full border-4 border-blue-100"></div>
+              <div className="absolute top-0 left-0 h-12 w-12 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
+            </div>
+            <p className="mt-4 text-sm text-gray-500">Loading your trips...</p>
+          </div>
+        ) : filteredTrips.length === 0 ? (
+          <div className="text-center py-16 rounded-2xl bg-white/50 border border-gray-100">
+            <div className="mx-auto h-16 w-16 text-gray-300">
+              <FiMapPin className="w-full h-full" />
+            </div>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">
+              {dashboardState.searchQuery || dashboardState.activeFilter !== 'all' 
+                ? 'No matching trips found'
+                : 'No trips yet'}
+            </h3>
+            <p className="mt-1 text-sm text-gray-500 max-w-md mx-auto">
+              {dashboardState.searchQuery 
+                ? 'Try adjusting your search or filter criteria.'
+                : dashboardState.activeFilter !== 'all'
+                  ? `You don't have any ${dashboardState.activeFilter} trips yet.`
+                  : 'Get started by creating your first trip.'}
+            </p>
+            <div className="mt-6">
+              <button
+                onClick={() => updateDashboardState({ showNewTripForm: true })}
+                className="inline-flex items-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all hover:shadow-md"
+              >
+                <FiPlus className="-ml-1 mr-2 h-4 w-4" />
+                New Trip
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filteredTrips.map((trip) => (
+              <div key={trip.id} className="group relative">
+                <TripCard
+                  id={trip.id}
+                  title={trip.title}
+                  location={trip.location}
+                  startDate={trip.startDate}
+                  endDate={trip.endDate}
+                  imageUrl={trip.imageUrl || getTripImage(trip.type as TripType)}
+                  type={trip.type as TripType}
+                  description={trip.description}
+                  saved={trip.saved || 0}
+                  userId={user?.uid || ''}
+                  onViewDetails={() => setSelectedTrip(trip)}
+                  onFavoriteToggle={handleToggleFavorite}
+                  isFavorite={favoriteTrips.has(trip.id)}
+                  onEdit={() => setTripToEdit(trip)}
+                />
+                
+                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowTripActions(showTripActions === trip.id ? null : trip.id);
+                    }}
+                    className="p-1.5 rounded-lg bg-white/90 backdrop-blur-sm text-gray-500 hover:bg-white hover:text-gray-700 focus:outline-none shadow-sm hover:shadow transition-all"
+                  >
+                    <FiMoreVertical className="h-4 w-4" />
+                  </button>
+                  
+                  {showTripActions === trip.id && (
+                    <div className="absolute right-0 mt-1 w-48 rounded-xl shadow-lg bg-white/95 backdrop-blur-sm ring-1 ring-black/5 focus:outline-none z-10 overflow-hidden animate-in fade-in-50 slide-in-from-top-2">
+                      <div className="py-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTripToEdit(trip);
+                            setShowTripActions(null);
+                          }}
+                          className="flex w-full items-center px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50/80 transition-colors"
+                        >
+                          <FiEdit2 className="mr-3 h-4 w-4 text-gray-400" />
+                          Edit Trip
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTrip(trip.id);
+                            setShowTripActions(null);
+                          }}
+                          className="flex w-full items-center px-4 py-2.5 text-sm text-red-600 hover:bg-red-50/80 transition-colors"
+                        >
+                          <FiTrash2 className="mr-3 h-4 w-4" />
+                          Delete Trip
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
     </div>
   );
 }
