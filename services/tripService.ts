@@ -9,31 +9,112 @@ import {
   query, 
   where, 
   orderBy,
-  serverTimestamp
+  serverTimestamp,
+  QueryConstraint,
+  DocumentData,
+  QueryDocumentSnapshot,
+  DocumentSnapshot,
+  limit,
+  increment
 } from 'firebase/firestore';
-import { db } from '@/firebase/config';
-import { Trip, TripFormData } from '@/types/trip';
+import { getFirestoreDb } from '@/firebase/config';
+const db = getFirestoreDb();
+import { Trip, TripFormData, TripType } from '@/types/trip';
+
+type TripCreateData = Omit<Trip, 'id' | 'createdAt' | 'updatedAt'>;
+type TripUpdateData = Partial<Omit<Trip, 'id' | 'createdAt' | 'userId'>> & {
+  updatedAt?: any; // Allowing Firestore serverTimestamp
+};
+
+// Helper function to convert Firestore document to Trip
+const mapDocumentToTrip = (doc: QueryDocumentSnapshot | DocumentSnapshot): Trip => {
+  const data = doc.data();
+  if (!data) throw new Error('Document data is undefined');
+  
+  return {
+    id: doc.id,
+    title: data.title,
+    description: data.description || '',
+    location: data.location,
+    startDate: data.startDate,
+    endDate: data.endDate,
+    type: data.type || 'leisure', // Default to 'leisure' if not specified
+    imageUrl: data.imageUrl || '',
+    isFavorite: data.isFavorite || false,
+    saved: data.saved || 0,
+    userId: data.userId,
+    createdAt: data.createdAt?.toDate?.() || new Date(),
+    updatedAt: data.updatedAt?.toDate?.() || new Date(),
+    days: data.days || []
+  };
+};
 
 class TripService {
-  // Get all trips for a user
-  async getTrips(userId: string): Promise<Trip[]> {
+  /**
+   * Get all trips for a user with optional filtering and sorting
+   * @param userId - The ID of the user
+   * @param filters - Optional filters to apply
+   * @param sortField - Field to sort by (default: 'createdAt')
+   * @param sortDirection - Sort direction (default: 'desc')
+   * @returns Promise with array of trips
+   */
+  async getTrips(
+    userId: string, 
+    filters: {
+      type?: TripType;
+      isFavorite?: boolean;
+      startDate?: Date;
+      endDate?: Date;
+    } = {},
+    sortField: keyof Trip = 'createdAt',
+    sortDirection: 'asc' | 'desc' = 'desc'
+  ): Promise<Trip[]> {
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
     try {
       const tripsRef = collection(db, 'users', userId, 'trips');
-      const q = query(tripsRef, orderBy('createdAt', 'desc'));
+      const queryConstraints: QueryConstraint[] = [];
+
+      // Apply filters if provided
+      if (filters.type) {
+        queryConstraints.push(where('type', '==', filters.type));
+      }
+      if (filters.isFavorite !== undefined) {
+        queryConstraints.push(where('isFavorite', '==', filters.isFavorite));
+      }
+      if (filters.startDate) {
+        queryConstraints.push(where('startDate', '>=', filters.startDate));
+      }
+      if (filters.endDate) {
+        queryConstraints.push(where('endDate', '<=', filters.endDate));
+      }
+
+      // Add sorting
+      queryConstraints.push(orderBy(sortField, sortDirection));
+
+      const q = query(tripsRef, ...queryConstraints);
       const querySnapshot = await getDocs(q);
       
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Trip[];
+      return querySnapshot.docs.map(mapDocumentToTrip);
     } catch (error) {
       console.error('Error getting trips:', error);
-      throw error;
+      throw new Error('Failed to fetch trips. Please try again later.');
     }
   }
 
-  // Get a single trip by ID
+  /**
+   * Get a single trip by ID
+   * @param userId - The ID of the user
+   * @param tripId - The ID of the trip to retrieve
+   * @returns Promise with the trip or null if not found
+   */
   async getTrip(userId: string, tripId: string): Promise<Trip | null> {
+    if (!userId || !tripId) {
+      throw new Error('User ID and Trip ID are required');
+    }
+
     try {
       const tripRef = doc(db, 'users', userId, 'trips', tripId);
       const tripSnap = await getDoc(tripRef);
@@ -42,98 +123,221 @@ class TripService {
         return null;
       }
       
-      return {
-        id: tripSnap.id,
-        ...tripSnap.data()
-      } as Trip;
+      return mapDocumentToTrip(tripSnap);
     } catch (error) {
       console.error('Error getting trip:', error);
-      throw error;
+      throw new Error('Failed to fetch trip. Please try again.');
     }
   }
 
-  // Create a new trip
-  async createTrip(userId: string, tripData: Omit<Trip, 'id' | 'createdAt' | 'updatedAt'>) {
+  /**
+   * Create a new trip
+   * @param userId - The ID of the user creating the trip
+   * @param tripData - The trip data to create
+   * @returns Promise with the created trip including its ID
+   */
+  async createTrip(userId: string, tripData: TripCreateData): Promise<Trip> {
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    if (!tripData.title || !tripData.location || !tripData.startDate || !tripData.endDate) {
+      throw new Error('Missing required trip fields');
+    }
+
     try {
       const tripsRef = collection(db, 'users', userId, 'trips');
       const newTripRef = doc(tripsRef);
       
+      // Create timestamps
+      const now = new Date();
       const tripWithTimestamps = {
         ...tripData,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        userId, // Ensure userId is set
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
       };
       
       await setDoc(newTripRef, tripWithTimestamps);
       
+      // Return the created trip with the correct types
       return {
         id: newTripRef.id,
-        ...tripWithTimestamps
+        ...tripData,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
       };
     } catch (error) {
       console.error('Error creating trip:', error);
-      throw error;
+      throw new Error('Failed to create trip. Please try again.');
     }
   }
 
-  // Update an existing trip
+  /**
+   * Update an existing trip
+   * @param userId - The ID of the user who owns the trip
+   * @param tripId - The ID of the trip to update
+   * @param updates - The fields to update
+   * @returns Promise that resolves when the update is complete
+   */
   async updateTrip(
     userId: string, 
     tripId: string, 
-    updates: Partial<Trip>
+    updates: TripUpdateData
   ): Promise<void> {
+    if (!userId || !tripId) {
+      throw new Error('User ID and Trip ID are required');
+    }
+
+    if (Object.keys(updates).length === 0) {
+      console.warn('No updates provided');
+      return;
+    }
+
     try {
       const tripRef = doc(db, 'users', userId, 'trips', tripId);
       
+      // Don't allow updating these fields
+      const { id, userId: _, createdAt, ...safeUpdates } = updates as any;
+      
       await updateDoc(tripRef, {
-        ...updates,
+        ...safeUpdates,
         updatedAt: serverTimestamp()
       });
     } catch (error) {
       console.error('Error updating trip:', error);
-      throw error;
+      throw new Error('Failed to update trip. Please try again.');
     }
   }
 
-  // Delete a trip
+  /**
+   * Delete a trip
+   * @param userId - The ID of the user who owns the trip
+   * @param tripId - The ID of the trip to delete
+   * @returns Promise that resolves when the trip is deleted
+   */
   async deleteTrip(userId: string, tripId: string): Promise<void> {
+    if (!userId || !tripId) {
+      throw new Error('User ID and Trip ID are required');
+    }
+
     try {
       const tripRef = doc(db, 'users', userId, 'trips', tripId);
       await deleteDoc(tripRef);
     } catch (error) {
       console.error('Error deleting trip:', error);
-      throw error;
+      throw new Error('Failed to delete trip. Please try again.');
     }
   }
 
-  // Toggle favorite status
+  /**
+   * Toggle the favorite status of a trip
+   * @param userId - The ID of the user who owns the trip
+   * @param tripId - The ID of the trip to update
+   * @param isFavorite - The new favorite status
+   * @returns Promise that resolves when the update is complete
+   */
   async toggleFavorite(userId: string, tripId: string, isFavorite: boolean): Promise<void> {
     try {
       await this.updateTrip(userId, tripId, { isFavorite });
     } catch (error) {
       console.error('Error toggling favorite:', error);
-      throw error;
+      throw new Error('Failed to update favorite status. Please try again.');
     }
   }
 
-  // Search trips
-  async searchTrips(userId: string, query: string): Promise<Trip[]> {
+  /**
+   * Search trips by title or location
+   * @param userId - The ID of the user
+   * @param searchTerm - The search term to look for in title or location
+   * @param limit - Maximum number of results to return (default: 10)
+   * @returns Promise with array of matching trips
+   */
+  async searchTrips(userId: string, searchTerm: string, resultLimit: number = 10): Promise<Trip[]> {
+    if (!userId) {
+      throw new Error('User ID is required');
+    }
+
+    if (!searchTerm || searchTerm.trim() === '') {
+      return [];
+    }
+
     try {
       const tripsRef = collection(db, 'users', userId, 'trips');
-      const q = query(
+      const searchLower = searchTerm.toLowerCase();
+      
+      // Search in title (case-insensitive)
+      const titleQuery = query(
         tripsRef,
-        where('title', '>=', query),
-        where('title', '<=', query + '\uf8ff')
+        where('searchTerms', 'array-contains', searchLower),
+        orderBy('createdAt', 'desc'),
+        limit(resultLimit)
       );
       
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Trip[];
+      const titleSnapshot = await getDocs(titleQuery);
+      
+      // If we have enough results, return them
+      if (titleSnapshot.size >= resultLimit) {
+        return titleSnapshot.docs.map(mapDocumentToTrip);
+      }
+      
+      // If not, also search in location
+      const locationQuery = query(
+        tripsRef,
+        where('locationSearch', '>=', searchLower),
+        where('locationSearch', '<=', searchLower + '\uf8ff'),
+        orderBy('locationSearch'),
+        limit(resultLimit - titleSnapshot.size)
+      );
+      
+      const locationSnapshot = await getDocs(locationQuery);
+      
+      // Combine and deduplicate results
+      const results = new Map<string, Trip>();
+      
+      titleSnapshot.docs.forEach(doc => {
+        const trip = mapDocumentToTrip(doc);
+        results.set(trip.id, trip);
+      });
+      
+      locationSnapshot.docs.forEach(doc => {
+        if (!results.has(doc.id)) {
+          const trip = mapDocumentToTrip(doc);
+          results.set(trip.id, trip);
+        }
+      });
+      
+      return Array.from(results.values());
     } catch (error) {
       console.error('Error searching trips:', error);
-      throw error;
+      throw new Error('Failed to search trips. Please try again.');
+    }
+  }
+  
+  /**
+   * Increment the saved count of a trip
+   * @param userId - The ID of the user who owns the trip
+   * @param tripId - The ID of the trip to update
+   * @returns Promise with the new saved count
+   */
+  async incrementSavedCount(userId: string, tripId: string): Promise<number> {
+    if (!userId || !tripId) {
+      throw new Error('User ID and Trip ID are required');
+    }
+
+    try {
+      const tripRef = doc(db, 'users', userId, 'trips', tripId);
+      await updateDoc(tripRef, {
+        saved: increment(1),
+        updatedAt: serverTimestamp()
+      });
+
+      // Get the updated count
+      const tripSnap = await getDoc(tripRef);
+      return tripSnap.data()?.saved || 0;
+    } catch (error) {
+      console.error('Error incrementing saved count:', error);
+      throw new Error('Failed to update saved count. Please try again.');
     }
   }
 }
