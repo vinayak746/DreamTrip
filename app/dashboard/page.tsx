@@ -1,22 +1,51 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { tripService } from '@/firebase/config';
+// Import storage functions directly from Firebase
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import type { Timestamp as FirebaseTimestamp } from 'firebase/firestore';
 import { 
-  FiPlus, FiSearch, FiFilter, FiStar, FiMoreVertical, FiX, 
-  FiEdit2, FiTrash2, FiUser, FiLogOut, FiHeart, FiChevronDown, 
-  FiMapPin, FiCalendar 
+  FiPlus, FiSearch, FiStar, FiMoreVertical, FiX, 
+  FiEdit2, FiTrash2, FiHeart, FiChevronDown, 
+  FiMapPin, FiCalendar, FiUser, FiLogOut 
 } from 'react-icons/fi';
 import NewTripForm from './components/NewTripForm';
-import { Trip, TripDay, TripType, TripFormData } from '@/types/trip';
-import { tripService } from '@/firebase/config';
+import { Trip, TripType, TripFormData, TripDay } from '@/types/trip';
 
-// Extend the Trip interface to include Firestore fields
-interface FirestoreTrip extends Omit<TripType, 'id' | 'createdAt' | 'updatedAt'> {
-  id?: string;
-  createdAt?: any; // Firestore Timestamp
-  updatedAt?: any; // Firestore Timestamp
+// Define a type for Firestore timestamp
+type FirestoreTimestamp = FirebaseTimestamp | { toDate: () => Date } | { seconds: number };
+
+// Create a base trip type without the fields we want to modify
+type BaseTrip = Omit<Trip, 'id' | 'createdAt' | 'updatedAt' | 'days'>;
+
+// Extend the base trip type with Firestore-specific fields
+interface FirestoreTrip extends BaseTrip {
+  id: string;
+  createdAt: FirestoreTimestamp | string;
+  updatedAt: FirestoreTimestamp | string;
+  days?: TripDay[];
+}
+
+// Helper function to convert Firestore timestamps to ISO strings
+const convertTimestamp = (timestamp: any): string => {
+  try {
+    if (!timestamp) return '';
+    if (typeof timestamp === 'string') return timestamp;
+    if (typeof timestamp.toDate === 'function') return timestamp.toDate().toISOString();
+    if (timestamp.seconds) return new Date(timestamp.seconds * 1000).toISOString();
+    return '';
+  } catch (error) {
+    console.error('Error converting timestamp:', error);
+    return '';
+  }
+};
+
+// Extend TripFormData to include imageFile
+interface ExtendedTripFormData extends TripFormData {
+  imageFile?: File;
 }
 
 interface UserProfile {
@@ -28,7 +57,6 @@ interface UserProfile {
 
 interface DashboardState {
   trips: Trip[];
-  filteredTrips: Trip[];
   showNewTripForm: boolean;
   userProfile: UserProfile | null;
   filters: {
@@ -46,15 +74,43 @@ const formatDate = (dateString: string): string => {
   return new Date(dateString).toLocaleDateString('en-US', options);
 };
 
+// Define the Dashboard component
 export default function Dashboard() {
+  // Hooks
   const { user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
   
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  // Refs
   const profileRef = useRef<HTMLDivElement>(null);
-  const [selectedTrip, setSelectedTrip] = useState<TripType | null>(null);
-  const [showTripActions, setShowTripActions] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  
+  // Component state
+  const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
+  const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
+  const [showTripActions, setShowTripActions] = useState<string | null>(null);
+  
+  // Initialize dashboard state with proper typing
+  const [dashboardState, setDashboardState] = useState<DashboardState>({
+    trips: [],
+    showNewTripForm: false,
+    userProfile: null,
+    filters: {
+      type: null,
+      location: null
+    },
+    searchQuery: '',
+    activeFilter: 'all',
+    loading: true,
+    error: null
+  });
+  
+  // Helper function to safely update dashboard state
+  const updateDashboardState = useCallback((updates: Partial<DashboardState>) => {
+    setDashboardState(prev => ({
+      ...prev,
+      ...updates
+    }));
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -70,20 +126,24 @@ export default function Dashboard() {
     };
   }, []);
 
-  const [dashboardState, setDashboardState] = useState<DashboardState>({
-    trips: [],
-    filteredTrips: [],
-    showNewTripForm: false,
-    userProfile: null,
-    filters: {
-      type: null,
-      location: null
-    },
-    searchQuery: '',
-    activeFilter: 'all',
-    loading: true,
-    error: null
-  });
+  // Initialize dashboard state with proper typing
+ 
+
+  // Filter and memoize trips based on search query and active filter
+  const filteredTrips = useMemo<Trip[]>(() => {
+    const { trips, searchQuery, activeFilter } = dashboardState;
+    if (!trips) return [];
+    
+    return trips.filter((trip: Trip) => {
+      const matchesSearch = !searchQuery || 
+        trip.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        trip.location?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesFilter = activeFilter === 'all' || trip.type === activeFilter;
+      
+      return matchesSearch && matchesFilter;
+    });
+  }, [dashboardState.trips, dashboardState.searchQuery, dashboardState.activeFilter]);
 
   const handleSignOut = async () => {
     try {
@@ -94,80 +154,77 @@ export default function Dashboard() {
     }
   };
 
-  const handleCreateTrip = async (formData: TripFormData) => {
-    if (!user) {
-      setDashboardState(prev => ({
-        ...prev,
-        error: 'You must be logged in to create a trip.'
-      }));
-      return;
-    }
-    
+  // Upload image to Firebase Storage if a file is provided
+  const uploadTripImage = async (file: File, tripId: string): Promise<string> => {
+    if (!file) return '';
     try {
-      setDashboardState(prev => ({ ...prev, loading: true }));
-      
-      // Create the trip data with required fields
-      const tripData = {
-        ...formData,
-        saved: 0,
-        isFavorite: false,
-        days: [{ 
-          day: 1, 
-          location: formData.location, 
-          activities: [''] 
-        }],
-        description: formData.description || '',
-        imageUrl: formData.imageUrl || '',
-        userId: user.uid // Ensure the user ID is included
-      };
-      
-      // Create the trip in Firestore
-      const createdTrip = await tripService.createTrip(user.uid, tripData);
-      
-      // Format the created trip with proper timestamps
-      const now = new Date().toISOString();
-      const formattedTrip: Trip = {
-        ...tripData,
-        id: createdTrip.id,
-        createdAt: now,
-        updatedAt: now
-      };
-      
-      // Update the UI state
-      setDashboardState(prev => {
-        const updatedTrips = [formattedTrip, ...prev.trips];
-        return {
-          ...prev,
-          trips: updatedTrips,
-          filteredTrips: updatedTrips, // Update filtered trips to include the new one
-          showNewTripForm: false,
-          loading: false,
-          error: null
-        };
-      });
-      
-      return formattedTrip;
-      
+      const storage = getStorage();
+      const storageRef = ref(storage, `trip-images/${tripId}/${file.name}`);
+      await uploadBytes(storageRef, file);
+      return await getDownloadURL(storageRef);
     } catch (error) {
-      console.error('Error creating trip:', error);
-      setDashboardState(prev => ({
-        ...prev,
-        loading: false,
-        error: 'Failed to create trip. Please try again.'
-      }));
-      throw error; // Re-throw to allow form to handle the error
+      console.error('Error uploading image:', error);
+      return '';
     }
   };
 
-  const handleFilterTrips = (type: TripType | null, location: string | null) => {
-    setDashboardState((prev: DashboardState) => ({
+  // Handle trip creation with image upload
+  const handleCreateTrip = async (formData: ExtendedTripFormData) => {
+    try {
+      updateDashboardState({ loading: true });
+      
+      // Upload image if provided
+      let imageUrl = '';
+      if (formData.imageFile) {
+        imageUrl = await uploadTripImage(formData.imageFile, 'new-trip');
+      }
+
+      // Create trip with image URL
+      const newTripData = {
+        ...formData,
+        imageUrl,
+        isFavorite: false,
+        saved: 0,
+        days: [],
+        userId: user?.uid || '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // Save trip to Firestore
+      const createdTrip = await tripService.createTrip(user?.uid || '', newTripData);
+      
+      // Refresh trips list
+      await fetchTrips();
+      
+      // Update UI state
+      updateDashboardState({
+        showNewTripForm: false,
+        loading: false,
+        error: null
+      });
+      
+    } catch (error) {
+      console.error('Error creating trip:', error);
+      updateDashboardState({
+        loading: false,
+        error: 'Failed to create trip. Please try again.'
+      });
+    }
+  };
+
+  const handleFilterTrips = (type: TripType | string | null, location: string | null) => {
+    // If type is a string, convert it to TripType or null
+    const filterType = type === 'all' || type === null ? null : type as TripType;
+    
+    setDashboardState(prev => ({
       ...prev,
-      filters: { type, location },
-      filteredTrips: prev.trips.filter(trip => {
-        if (type && trip.type !== type) return false;
-        if (location && !trip.location.toLowerCase().includes(location.toLowerCase())) return false;
-        return true;
-      })
+      filters: { 
+        type: filterType,
+        location: location || null 
+      },
+      // Update search query if location is provided
+      searchQuery: location || prev.searchQuery
     }));
   };
 
@@ -180,7 +237,6 @@ export default function Dashboard() {
       setDashboardState(prev => ({
         ...prev,
         trips: prev.trips.filter(trip => trip.id !== tripId),
-        filteredTrips: prev.filteredTrips.filter(trip => trip.id !== tripId),
         error: null
       }));
     } catch (error) {
@@ -202,7 +258,7 @@ export default function Dashboard() {
     }
     
     try {
-      const trip = dashboardState.trips.find(t => t.id === tripId);
+      const trip = dashboardState.trips.find((t: Trip) => t.id === tripId);
       if (!trip) {
         console.error('Trip not found:', tripId);
         return;
@@ -211,32 +267,15 @@ export default function Dashboard() {
       const newFavoriteStatus = !trip.isFavorite;
       
       // Optimistic UI update
-      setDashboardState(prev => {
-        const updatedTrips = prev.trips.map(t => 
+      setDashboardState(prev => ({
+        ...prev,
+        trips: prev.trips.map((t: Trip) => 
           t.id === tripId 
             ? { ...t, isFavorite: newFavoriteStatus, updatedAt: new Date().toISOString() } 
             : t
-        );
-        
-        return {
-          ...prev,
-          trips: updatedTrips,
-          filteredTrips: updatedTrips.filter(trip => {
-            const searchQuery = prev.searchQuery.toLowerCase();
-            const matchesSearch = 
-              trip.title.toLowerCase().includes(searchQuery) ||
-              trip.location.toLowerCase().includes(searchQuery);
-            
-            const matchesFilter = 
-              (prev.filters.type === null || trip.type === prev.filters.type) &&
-              (prev.filters.location === null || 
-               trip.location.toLowerCase().includes(prev.filters.location.toLowerCase()));
-            
-            return matchesSearch && matchesFilter;
-          }),
-          error: null
-        };
-      });
+        ),
+        error: null
+      }));
       
       // Update in Firestore
       await tripService.updateTrip(user.uid, tripId, { 
@@ -244,24 +283,25 @@ export default function Dashboard() {
         updatedAt: new Date().toISOString()
       });
       
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error updating favorite status:', error);
       
       // Revert optimistic update on error
-      setDashboardState(prev => {
-        const originalTrips = prev.trips.map(t => 
-          t.id === tripId ? { ...t, isFavorite: !t.isFavorite } : t
-        );
-        
-        return {
-          ...prev,
-          trips: originalTrips,
-          filteredTrips: originalTrips,
-          error: 'Failed to update favorite status. Please try again.'
-        };
-      });
+      setDashboardState(prev => ({
+        ...prev,
+        trips: prev.trips.map((t: Trip) => 
+          t.id === tripId 
+            ? { ...t, isFavorite: !t.isFavorite, updatedAt: new Date().toISOString() } 
+            : t
+        ),
+        error: 'Failed to update favorite status. Please try again.'
+      }));
       
-      throw error; // Re-throw to allow UI to handle the error
+      // Re-throw the error to allow the UI to handle it if needed
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('An unknown error occurred');
     }
   };
 
@@ -276,37 +316,35 @@ export default function Dashboard() {
       }));
       return;
     }
-    
+
     try {
-      setDashboardState(prev => ({ ...prev, loading: true }));
-      console.log('Fetching trips for user:', user.uid);
+      setDashboardState(prev => ({ ...prev, loading: true, error: null }));
       
+      // Fetch trips from Firestore
       const trips = await tripService.getTrips(user.uid);
       
-      // Convert Firestore trip data to Trip interface
-      const formattedTrips = trips.map(trip => {
-        // Handle Firestore timestamps
-        const convertTimestamp = (timestamp: any) => {
-          if (!timestamp) return new Date().toISOString();
-          if (timestamp.toDate) return timestamp.toDate().toISOString();
-          if (timestamp.seconds) return new Date(timestamp.seconds * 1000).toISOString();
-          return new Date(timestamp).toISOString();
+      // Ensure all trips have required fields with proper typing
+      const formattedTrips: Trip[] = trips.map(trip => {
+        // Create a properly typed trip object
+        const tripData: Omit<Trip, 'id'> = {
+          title: trip.title || 'Untitled Trip',
+          description: trip.description || '',
+          location: trip.location || '',
+          startDate: trip.startDate || '',
+          endDate: trip.endDate || '',
+          type: trip.type || 'leisure',
+          isFavorite: trip.isFavorite || false,
+          saved: trip.saved || 0,
+          imageUrl: trip.imageUrl || '',
+          userId: trip.userId || user!.uid, // We know user is defined here
+          days: Array.isArray(trip.days) ? trip.days : [],
+          createdAt: typeof trip.createdAt === 'string' ? trip.createdAt : new Date().toISOString(),
+          updatedAt: typeof trip.updatedAt === 'string' ? trip.updatedAt : new Date().toISOString()
         };
         
         return {
-          id: trip.id,
-          title: trip.title || 'Untitled Trip',
-          description: trip.description || '',
-          location: trip.location || 'Unknown Location',
-          startDate: trip.startDate || new Date().toISOString(),
-          endDate: trip.endDate || new Date().toISOString(),
-          type: (trip.type || 'leisure') as TripType,
-          imageUrl: trip.imageUrl || '',
-          saved: typeof trip.saved === 'number' ? trip.saved : 0,
-          days: Array.isArray(trip.days) ? trip.days : [],
-          isFavorite: Boolean(trip.isFavorite),
-          createdAt: convertTimestamp(trip.createdAt),
-          updatedAt: convertTimestamp(trip.updatedAt || trip.createdAt)
+          ...tripData,
+          id: trip.id // Add the id separately to satisfy the Trip interface
         } as Trip;
       });
       
@@ -315,53 +353,43 @@ export default function Dashboard() {
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       
+      // Update user profile and trips in state
       setDashboardState(prev => ({
         ...prev,
         trips: sortedTrips,
-        filteredTrips: sortedTrips,
-        loading: false,
-        error: null
-      }));
-    } catch (error) {
-      console.error('Error fetching trips:', error);
-      setDashboardState(prev => ({
-        ...prev,
-        error: 'Failed to load trips',
-        loading: false
-      }));
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/');
-    } else if (user) {
-      const handleFilterClick = (filter: string) => {
-        setDashboardState(prev => ({
-          ...prev,
-          activeFilter: filter,
-          filters: {
-            ...prev.filters,
-            type: filter === 'all' ? null : filter as 'leisure' | 'business' | 'adventure' | 'family'
-          }
-        }));
-      };
-
-      // Set user profile
-      setDashboardState(prev => ({
-        ...prev,
         userProfile: {
           id: user.uid,
           name: user.displayName || 'User',
           email: user.email || '',
           profilePicture: user.photoURL || '/default-avatar.png'
-        }
+        },
+        loading: false,
+        error: null
+      }));
+
+    } catch (error) {
+      console.error('Error fetching trips:', error);
+      setDashboardState(prev => ({
+        ...prev,
+        loading: false,
+        error: 'Failed to load trips. Please try again.'
       }));
       
-      // Fetch trips
-      fetchTrips();
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('An unknown error occurred while fetching trips');
     }
-  }, [user, authLoading, router, fetchTrips]);
+  }, [user]);
+
+  // Initial data loading
+  useEffect(() => {
+    if (user) {
+      fetchTrips();
+    } else {
+      router.push('/');
+    }
+  }, [user, fetchTrips, router]);
 
   if (authLoading || dashboardState.loading) {
     return (
@@ -449,34 +477,37 @@ export default function Dashboard() {
               />
             </div>
             <div className="flex space-x-2 overflow-x-auto pb-2 md:pb-0">
-              {['all', 'adventure', 'leisure', 'hiking', 'business', 'family'].map((filter) => (
-                <button
-                  key={filter}
-                  onClick={() => handleFilterTrips(filter === 'all' ? null : filter as unknown as TripType, dashboardState.filters.location)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
-                                      dashboardState.filters.type === (filter === 'all' ? null : filter as unknown as TripType)
-                    ? 'bg-indigo-100 text-indigo-800'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                  {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                </button>
-              ))}
+              {['all', 'adventure', 'leisure', 'hiking', 'business', 'family'].map((filter) => {
+                // Safely cast to TripType if not 'all'
+                const tripType = filter === 'all' ? null : filter as TripType;
+                const isActive = dashboardState.filters.type === tripType;
+                
+                return (
+                  <button
+                    key={filter}
+                    onClick={() => handleFilterTrips(tripType, dashboardState.filters.location)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                      isActive 
+                        ? 'bg-indigo-100 text-indigo-800' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
 
         {/* Trips Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {dashboardState.filteredTrips.length > 0 ? (
-            dashboardState.filteredTrips.map((trip) => (
-              <div key={trip.id} className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+          {filteredTrips.length > 0 ? (
+            filteredTrips.map((trip) => (
+              <div key={trip.id} className="bg-white rounded-lg shadow-md overflow-hidden">
                 <div className="relative h-48">
                   <img 
-                    src={trip.imageUrl
-
-                      || ""
-                    } 
+                    src={trip.imageUrl || ""}
                     alt={trip.title} 
                     className="w-full h-full object-cover"
                   />

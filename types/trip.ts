@@ -8,12 +8,13 @@ export interface TripDay {
 
 export interface TripFormData {
   title: string;
-  description: string;
   location: string;
   startDate: string;
   endDate: string;
   type: TripType;
-  imageUrl?: string;
+  description?: string;
+  isFavorite?: boolean;
+  imageFile?: File;
 }
 
 export interface Trip extends Omit<TripFormData, 'imageUrl'> {
@@ -22,6 +23,7 @@ export interface Trip extends Omit<TripFormData, 'imageUrl'> {
   saved: number;
   days: TripDay[];
   isFavorite: boolean;
+  userId: string;
   createdAt: string;
   updatedAt: string;
 }
