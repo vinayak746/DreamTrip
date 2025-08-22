@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FiX, FiCalendar, FiMapPin, FiImage, FiLoader } from 'react-icons/fi';
+import { FiX, FiCalendar, FiMapPin, FiImage, FiLoader, FiPlus } from 'react-icons/fi';
 import { getTripImage } from '@/utils/tripImages';
 
 type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
@@ -149,233 +149,276 @@ export default function NewTripForm({ onClose, onSubmit, isSubmitting = false }:
   };
 
   return (
-    <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">New Trip</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-            <FiX size={24} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-              Trip Title <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="title"
-              type="text"
-              name="title"
-              value={formData.title}
-              onChange={handleChange}
-              className={`w-full px-3 py-2 border-2 ${formErrors.title ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
-              disabled={isSubmitting}
-              aria-invalid={!!formErrors.title}
-              aria-describedby={formErrors.title ? 'title-error' : undefined}
-            />
-            {formErrors.title && (
-              <p id="title-error" className="mt-1 text-sm text-red-600">
-                {formErrors.title}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              rows={3}
-              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="Tell us about your trip..."
-            />
-          </div>
-
-          <div>
-            <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
-              Location <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <FiMapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                id="location"
-                type="text"
-                name="location"
-                value={formData.location}
-                onChange={handleChange}
-                className={`w-full pl-10 pr-3 py-2 border-2 ${formErrors.location ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
-                disabled={isSubmitting}
-                aria-invalid={!!formErrors.location}
-                aria-describedby={formErrors.location ? 'location-error' : undefined}
-                placeholder="Where are you going?"
-              />
-            </div>
-            {formErrors.location && (
-              <p id="location-error" className="mt-1 text-sm text-red-600">
-                {formErrors.location}
-              </p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-100">
+        <div className="p-8">
+          <div className="flex justify-between items-center mb-8">
             <div>
-              <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <FiCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  id="startDate"
-                  type="date"
-                  name="startDate"
-                  value={formData.startDate}
-                  onChange={handleChange}
-                  min={new Date().toISOString().split('T')[0]}
-                  className={`w-full pl-10 pr-3 py-2 border-2 ${formErrors.startDate ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
-                  disabled={isSubmitting}
-                  aria-invalid={!!formErrors.startDate}
-                  aria-describedby={formErrors.startDate ? 'startDate-error' : undefined}
-                />
-              </div>
-              {formErrors.startDate && (
-                <p id="startDate-error" className="mt-1 text-sm text-red-600">
-                  {formErrors.startDate}
-                </p>
-              )}
+              <h2 className="text-2xl font-bold text-gray-900">Plan Your Next Trip</h2>
+              <p className="text-gray-500 text-sm mt-1">Fill in the details to create your perfect itinerary</p>
             </div>
-            <div>
-              <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
-                End Date <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <FiCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  id="endDate"
-                  type="date"
-                  name="endDate"
-                  value={formData.endDate}
-                  onChange={handleChange}
-                  min={formData.startDate || new Date().toISOString().split('T')[0]}
-                  className={`w-full pl-10 pr-3 py-2 border-2 ${formErrors.endDate ? 'border-red-500' : 'border-gray-300'} rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
-                  disabled={isSubmitting || !formData.startDate}
-                  aria-invalid={!!formErrors.endDate}
-                  aria-describedby={formErrors.endDate ? 'endDate-error' : undefined}
-                />
-              </div>
-              {formErrors.endDate && (
-                <p id="endDate-error" className="mt-1 text-sm text-red-600">
-                  {formErrors.endDate}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">
-              Trip Type
-            </label>
-            <select
-              id="type"
-              name="type"
-              value={formData.type}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              disabled={isSubmitting}
-            >
-              <option value="leisure">🏖️ Leisure</option>
-              <option value="business">💼 Business</option>
-              <option value="adventure">🌋 Adventure</option>
-              <option value="hiking">🥾 Hiking</option>
-              <option value="family">👨‍👩‍👧‍👦 Family</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Trip Image
-            </label>
-            <div className="mt-1 flex items-start">
-              <div className="flex-shrink-0 h-24 w-24 rounded-lg overflow-hidden bg-gray-100 border-2 border-gray-300">
-                {isImageUploading ? (
-                  <div className="h-full w-full flex items-center justify-center bg-gray-50">
-                    <FiLoader className="animate-spin h-6 w-6 text-gray-500" />
-                  </div>
-                ) : (
-                  <img
-                    src={formData.imageUrl || getTripImage(formData.type)}
-                    alt="Trip preview"
-                    className="h-full w-full object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = getTripImage(formData.type);
-                    }}
-                  />
-                )}
-              </div>
-              <div className="ml-4 flex flex-col space-y-2">
-                <label className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 cursor-pointer">
-                  {formData.imageFile ? 'Change Image' : 'Upload Image'}
-                  <input 
-                    type="file" 
-                    className="sr-only" 
-                    onChange={handleImageChange} 
-                    accept="image/jpeg,image/png,image/webp"
-                    disabled={isImageUploading || isSubmitting}
-                  />
-                </label>
-                {formData.imageFile && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData(prev => ({
-                        ...prev,
-                        imageFile: undefined,
-                        imageUrl: getTripImage(prev.type)
-                      }));
-                      setFormErrors(prev => ({ ...prev, imageUrl: '' }));
-                    }}
-                    className="inline-flex items-center px-4 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                    disabled={isSubmitting}
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            </div>
-            {formErrors.imageUrl && (
-              <p className="mt-1 text-sm text-red-600">
-                {formErrors.imageUrl}
-              </p>
-            )}
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-4">
             <button
-              type="button"
               onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isSubmitting || isImageUploading}
+              className="text-gray-400 hover:bg-gray-100 p-2 rounded-full transition-colors"
+              disabled={isSubmitting}
+              aria-label="Close"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="inline-flex justify-center items-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed min-w-[100px]"
-              disabled={isSubmitting || isImageUploading}
-            >
-              {isSubmitting ? (
-                <>
-                  <FiLoader className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                  Creating...
-                </>
-              ) : (
-                'Create Trip'
-              )}
+              <FiX size={20} />
             </button>
           </div>
-        </form>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-1">
+              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1.5">
+                Trip Title <span className="text-red-500">*</span>
+              </label>
+              <div className="relative group">
+                <input
+                  id="title"
+                  type="text"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-3 bg-white border-2 ${
+                    formErrors.title ? 'border-red-400' : 'border-gray-100 hover:border-gray-200'
+                  } rounded-xl focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 shadow-sm`}
+                  disabled={isSubmitting}
+                  placeholder="e.g., Summer Vacation 2024"
+                  aria-invalid={!!formErrors.title}
+                  aria-describedby={formErrors.title ? 'title-error' : undefined}
+                />
+              </div>
+              {formErrors.title && (
+                <p id="title-error" className="mt-1 text-sm text-red-600">
+                  {formErrors.title}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1.5">
+                Description
+              </label>
+              <div className="relative">
+                <textarea
+                  id="description"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleChange}
+                  rows={3}
+                  className="w-full px-4 py-3 bg-white border-2 border-gray-100 hover:border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 shadow-sm resize-none"
+                  placeholder="Tell us about your trip..."
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+                Location <span className="text-red-500">*</span>
+              </label>
+              <div className="relative group">
+                <FiMapPin className="absolute left-4 top-3 text-gray-400 group-focus-within:text-indigo-500 transition-colors pointer-events-none" size={18} />
+                <input
+                  id="location"
+                  type="text"
+                  name="location"
+                  value={formData.location}
+                  onChange={handleChange}
+                  className={`w-full pl-10 pr-4 py-3 bg-white border-2 ${
+                    formErrors.location ? 'border-red-400' : 'border-gray-100 hover:border-gray-200'
+                  } rounded-xl focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 shadow-sm`}
+                  disabled={isSubmitting}
+                  placeholder=""
+                  aria-invalid={!!formErrors.location}
+                  aria-describedby={formErrors.location ? 'location-error' : undefined}
+                />
+              </div>
+              {formErrors.location && (
+                <p id="location-error" className="mt-1 text-sm text-red-600">
+                  {formErrors.location}
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+                  Start Date <span className="text-red-500">*</span>
+                </label>
+                <div className="relative group">
+                  {/* <FiCalendar className="absolute left-4 top-3 text-gray-400 group-focus-within:text-indigo-500 transition-colors pointer-events-none" size={18} /> */}
+                  <input
+                    id="startDate"
+                    type="date"
+                    name="startDate"
+                    value={formData.startDate}
+                    onChange={handleChange}
+                    min={new Date().toISOString().split('T')[0]}
+                    className={`w-full px-4 py-3 bg-white border-2 ${
+                      formErrors.startDate ? 'border-red-400' : 'border-gray-100 hover:border-gray-200'
+                    } rounded-xl focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 text-gray-900 
+                    [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer
+                    [&::-webkit-datetime-edit-text]:text-gray-400
+                    [&::-webkit-datetime-edit-month-field]:text-gray-400
+                    [&::-webkit-datetime-edit-day-field]:text-gray-400
+                    [&::-webkit-datetime-edit-year-field]:text-gray-400`}
+                    disabled={isSubmitting}
+                    aria-invalid={!!formErrors.startDate}
+                    aria-describedby={formErrors.startDate ? 'startDate-error' : undefined}
+                  />
+                </div>
+                {formErrors.startDate && (
+                  <p id="startDate-error" className="mt-1 text-sm text-red-600">
+                    {formErrors.startDate}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
+                  End Date <span className="text-red-500">*</span>
+                </label>
+                <div className="relative group">
+                  {/* <FiCalendar className="absolute left-4 top-3 text-gray-400 group-focus-within:text-indigo-500 transition-colors pointer-events-none" size={18} /> */}
+                  <input
+                    id="endDate"
+                    type="date"
+                    name="endDate"
+                    value={formData.endDate}
+                    onChange={handleChange}
+                    min={formData.startDate || new Date().toISOString().split('T')[0]}
+                    className={`w-full px-4 py-3 bg-white border-2 ${
+                      formErrors.endDate ? 'border-red-400' : 'border-gray-100 hover:border-gray-200'
+                    } rounded-xl focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 text-gray-900
+                    [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer
+                    [&::-webkit-datetime-edit-text]:text-gray-400
+                    [&::-webkit-datetime-edit-month-field]:text-gray-400
+                    [&::-webkit-datetime-edit-day-field]:text-gray-400
+                    [&::-webkit-datetime-edit-year-field]:text-gray-400`}
+                    disabled={isSubmitting || !formData.startDate}
+                    aria-invalid={!!formErrors.endDate}
+                    aria-describedby={formErrors.endDate ? 'endDate-error' : undefined}
+                  />
+                </div>
+                {formErrors.endDate && (
+                  <p id="endDate-error" className="mt-1 text-sm text-red-600">
+                    {formErrors.endDate}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">
+                Trip Type
+              </label>
+              <select
+                id="type"
+                name="type"
+                value={formData.type}
+                onChange={handleChange}
+                className="w-full px-4 py-3 bg-white border-2 border-gray-100 hover:border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 text-gray-900"
+                disabled={isSubmitting}
+              >
+                <option value="leisure">🏖️ Leisure</option>
+                <option value="business">💼 Business</option>
+                <option value="adventure">🌋 Adventure</option>
+                <option value="hiking">🥾 Hiking</option>
+                <option value="family">👨‍👩‍👧‍👦 Family</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Trip Image
+              </label>
+              <div className="mt-1 flex items-start">
+                <div className="flex-shrink-0 h-24 w-24 rounded-lg overflow-hidden bg-gray-100 border-2 border-gray-100">
+                  {isImageUploading ? (
+                    <div className="h-full w-full flex items-center justify-center bg-gray-50">
+                      <FiLoader className="animate-spin h-6 w-6 text-gray-500" />
+                    </div>
+                  ) : (
+                    <img
+                      src={formData.imageUrl || getTripImage(formData.type)}
+                      alt="Trip preview"
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = getTripImage(formData.type);
+                      }}
+                    />
+                  )}
+                </div>
+                <div className="ml-4 flex flex-col space-y-2">
+                  <label className="inline-flex items-center px-4 py-2 border border-gray-100 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 cursor-pointer">
+                    {formData.imageFile ? 'Change Image' : 'Upload Image'}
+                    <input 
+                      type="file" 
+                      className="sr-only" 
+                      onChange={handleImageChange} 
+                      accept="image/jpeg,image/png,image/webp"
+                      disabled={isImageUploading || isSubmitting}
+                    />
+                  </label>
+                  {formData.imageFile && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          imageFile: undefined,
+                          imageUrl: getTripImage(prev.type)
+                        }));
+                        setFormErrors(prev => ({ ...prev, imageUrl: '' }));
+                      }}
+                      className="inline-flex items-center px-4 py-2 border border-red-100 rounded-md shadow-sm text-sm font-medium text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                      disabled={isSubmitting}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+              {formErrors.imageUrl && (
+                <p className="mt-1 text-sm text-red-600">
+                  {formErrors.imageUrl}
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <div>
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-indigo-500 to-indigo-600 text-white py-3.5 px-6 rounded-xl font-medium hover:shadow-md hover:shadow-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center h-[46px]"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <span className="flex items-center justify-center">
+                      <FiLoader className="animate-spin mr-2" />
+                      Creating...
+                    </span>
+                  ) : (
+                    <span className="flex items-center">
+                      <FiPlus className="mr-2" />
+                      Create Trip
+                    </span>
+                  )}
+                </button>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full bg-white text-gray-600 py-3.5 px-6 border-2 border-gray-100 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200 h-[46px]"
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

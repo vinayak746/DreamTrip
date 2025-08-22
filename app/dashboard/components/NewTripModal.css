@@ -1,0 +1,48 @@
+/* Date input styling */
+input[type="date"] {
+  color: #111827;
+  background-color: white !important;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  padding-right: 1rem;
+}
+
+/* Remove default date picker icon */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  background: none;
+  display: none;
+}
+
+/* Show placeholder when no date is selected */
+input[type="date"]:not(:focus):not(:valid) {
+  color: #9ca3af;
+}
+
+/* Style the date input container */
+.relative.group {
+  position: relative;
+}
+
+/* Icon focus states */
+.group:focus-within .text-gray-400 {
+  color: #6366f1;
+}
+
+/* Input focus state */
+input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+/* Smooth transitions */
+input {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Disable text selection on date inputs */
+input[type="date"] {
+  user-select: none;
+}
