@@ -3,17 +3,19 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { tripService } from '@/firebase/config';
-// Import storage functions directly from Firebase
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import type { Timestamp as FirebaseTimestamp } from 'firebase/firestore';
+import { getFirestoreDb, tripService } from '@/firebase/config';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { doc, getDoc, updateDoc, arrayUnion, arrayRemove, setDoc, serverTimestamp, type Timestamp as FirebaseTimestamp, collection } from 'firebase/firestore';
 import { 
   FiPlus, FiSearch, FiStar, FiMoreVertical, FiX, 
   FiEdit2, FiTrash2, FiHeart, FiChevronDown, 
-  FiMapPin, FiCalendar, FiUser, FiLogOut 
+  FiMapPin, FiCalendar, FiUser, FiLogOut, FiXCircle 
 } from 'react-icons/fi';
 import NewTripForm from './components/NewTripForm';
+import EditTripForm from './components/EditTripForm';
 import { Trip, TripType, TripFormData, TripDay } from '@/types/trip';
+import TripCard from './components/TripCard';
+import { getTripImage } from '@/utils/tripImages';
 
 // Define a type for Firestore timestamp
 type FirestoreTimestamp = FirebaseTimestamp | { toDate: () => Date } | { seconds: number };
@@ -87,7 +89,9 @@ export default function Dashboard() {
   // Component state
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
+  const [tripToEdit, setTripToEdit] = useState<Trip | null>(null);
   const [showTripActions, setShowTripActions] = useState<string | null>(null);
+  const [favoriteTrips, setFavoriteTrips] = useState<Set<string>>(new Set());
   
   // Initialize dashboard state with proper typing
   const [dashboardState, setDashboardState] = useState<DashboardState>({
@@ -168,6 +172,107 @@ export default function Dashboard() {
     }
   };
 
+  // Fetch user's favorite trips
+  const fetchFavoriteTrips = useCallback(async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const db = getFirestoreDb();
+      const userRef = doc(db, 'users', user.uid);
+      
+      // First try to get the user document
+      const userDoc = await getDoc(userRef);
+      
+      if (!userDoc.exists()) {
+        // Create the user document with default values if it doesn't exist
+        await setDoc(userRef, {
+          favoriteTrips: [],
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        setFavoriteTrips(new Set());
+        return;
+      }
+      
+      // If document exists, get the favoriteTrips array
+      const userData = userDoc.data();
+      if (userData && Array.isArray(userData.favoriteTrips)) {
+        setFavoriteTrips(new Set(userData.favoriteTrips));
+      } else {
+        // If favoriteTrips doesn't exist or isn't an array, initialize it
+        await updateDoc(userRef, {
+          favoriteTrips: [],
+          updatedAt: serverTimestamp()
+        });
+        setFavoriteTrips(new Set());
+      }
+    } catch (error) {
+      console.error('Error loading favorites:', error);
+      // Initialize with empty set in case of error
+      setFavoriteTrips(new Set());
+    }
+  }, [user?.uid]);
+
+  // Toggle trip favorite status
+  const handleToggleFavorite = async (tripId: string, isFavorite: boolean) => {
+    console.log(`Toggling favorite for trip ${tripId}, isFavorite: ${isFavorite}`);
+    if (!user?.uid) {
+      console.log('No user ID found');
+      return false;
+    }
+    
+    try {
+      const db = getFirestoreDb();
+      const userRef = doc(db, 'users', user.uid);
+      const userTripsRef = collection(db, 'users', user.uid, 'trips');
+      const tripRef = doc(userTripsRef, tripId);
+      
+      // First verify the trip exists in the user's trips
+      const tripDoc = await getDoc(tripRef);
+      if (!tripDoc.exists()) {
+        console.error(`Trip ${tripId} not found in user's trips`);
+        return false;
+      }
+  
+      // Get current favorites
+      const userDoc = await getDoc(userRef);
+      const currentFavorites = userDoc.exists() ? (userDoc.data()?.favoriteTrips || []) : [];
+      
+      // Update local state optimistically
+      const newFavorites = isFavorite 
+        ? [...currentFavorites, tripId]
+        : currentFavorites.filter((id: string) => id !== tripId);
+      
+      // Update Firestore
+      if (!userDoc.exists()) {
+        await setDoc(userRef, {
+          favoriteTrips: newFavorites,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        await updateDoc(userRef, {
+          favoriteTrips: newFavorites,
+          updatedAt: serverTimestamp()
+        });
+      }
+      
+      // Update the trip's isFavorite field
+      await updateDoc(tripRef, {
+        isFavorite,
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log('Favorite update successful');
+      return true;
+    } catch (error) {
+      console.error('Error updating favorite status:', error);
+      // Revert local state on error
+      setFavoriteTrips(new Set(favoriteTrips));
+      throw error;
+    }
+  };
+
   // Handle trip creation with image upload
   const handleCreateTrip = async (formData: ExtendedTripFormData) => {
     try {
@@ -213,6 +318,101 @@ export default function Dashboard() {
     }
   };
 
+  // Handle trip update with image handling
+  const handleUpdateTrip = async (tripId: string, formData: ExtendedTripFormData) => {
+    try {
+      updateDashboardState({ loading: true });
+      
+      let imageUrl = '';
+      
+      // Handle new image upload if provided
+      if (formData.imageFile) {
+        // Delete old image if it exists and is not the default image
+        const oldTrip = dashboardState.trips.find(t => t.id === tripId);
+        if (oldTrip?.imageUrl && !oldTrip.imageUrl.includes('default-trip')) {
+          try {
+            const storage = getStorage();
+            const oldImageRef = ref(storage, oldTrip.imageUrl);
+            await deleteObject(oldImageRef);
+          } catch (error) {
+            console.warn('Error deleting old image:', error);
+          }
+        }
+        
+        // Upload new image
+        imageUrl = await uploadTripImage(formData.imageFile, tripId);
+      }
+      
+      // Prepare trip data for update
+      const tripUpdates = {
+        ...formData,
+        imageUrl,
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Remove undefined values
+      Object.keys(tripUpdates).forEach(key => 
+        tripUpdates[key as keyof typeof tripUpdates] === undefined && 
+        delete tripUpdates[key as keyof typeof tripUpdates]
+      );
+      
+      // Update trip in Firestore
+      await tripService.updateTrip(user?.uid || '', tripId, tripUpdates);
+      
+      // Refresh trips list
+      await fetchTrips();
+      
+      // Reset edit state
+      setTripToEdit(null);
+      
+      updateDashboardState({ 
+        loading: false,
+        showNewTripForm: false
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating trip:', error);
+      updateDashboardState({ 
+        loading: false,
+        error: 'Failed to update trip. Please try again.'
+      });
+      return false;
+    }
+  };
+
+  // Handle trip deletion
+  const handleDeleteTrip = async (tripId: string) => {
+    if (!window.confirm('Are you sure you want to delete this trip? This action cannot be undone.')) {
+      return false;
+    }
+    
+    try {
+      updateDashboardState({ loading: true });
+      
+      // Delete trip from Firestore
+      await tripService.deleteTrip(user?.uid || '', tripId);
+      
+      // Refresh trips list
+      await fetchTrips();
+      
+      // Reset edit state if needed
+      if (tripToEdit?.id === tripId) {
+        setTripToEdit(null);
+      }
+      
+      updateDashboardState({ loading: false });
+      return true;
+    } catch (error) {
+      console.error('Error deleting trip:', error);
+      updateDashboardState({ 
+        loading: false,
+        error: 'Failed to delete trip. Please try again.'
+      });
+      return false;
+    }
+  };
+
   const handleFilterTrips = (type: TripType | string | null, location: string | null) => {
     // If type is a string, convert it to TripType or null
     const filterType = type === 'all' || type === null ? null : type as TripType;
@@ -226,83 +426,6 @@ export default function Dashboard() {
       // Update search query if location is provided
       searchQuery: location || prev.searchQuery
     }));
-  };
-
-  const deleteTrip = async (tripId: string) => {
-    if (!user) return;
-    
-    try {
-      await tripService.deleteTrip(user.uid, tripId);
-      
-      setDashboardState(prev => ({
-        ...prev,
-        trips: prev.trips.filter(trip => trip.id !== tripId),
-        error: null
-      }));
-    } catch (error) {
-      console.error('Error deleting trip:', error);
-      setDashboardState(prev => ({
-        ...prev,
-        error: 'Failed to delete trip. Please try again.'
-      }));
-    }
-  };
-
-  const toggleFavorite = async (tripId: string) => {
-    if (!user) {
-      setDashboardState(prev => ({
-        ...prev,
-        error: 'You must be logged in to favorite trips.'
-      }));
-      return;
-    }
-    
-    try {
-      const trip = dashboardState.trips.find((t: Trip) => t.id === tripId);
-      if (!trip) {
-        console.error('Trip not found:', tripId);
-        return;
-      }
-      
-      const newFavoriteStatus = !trip.isFavorite;
-      
-      // Optimistic UI update
-      setDashboardState(prev => ({
-        ...prev,
-        trips: prev.trips.map((t: Trip) => 
-          t.id === tripId 
-            ? { ...t, isFavorite: newFavoriteStatus, updatedAt: new Date().toISOString() } 
-            : t
-        ),
-        error: null
-      }));
-      
-      // Update in Firestore
-      await tripService.updateTrip(user.uid, tripId, { 
-        isFavorite: newFavoriteStatus,
-        updatedAt: new Date().toISOString()
-      });
-      
-    } catch (error: unknown) {
-      console.error('Error updating favorite status:', error);
-      
-      // Revert optimistic update on error
-      setDashboardState(prev => ({
-        ...prev,
-        trips: prev.trips.map((t: Trip) => 
-          t.id === tripId 
-            ? { ...t, isFavorite: !t.isFavorite, updatedAt: new Date().toISOString() } 
-            : t
-        ),
-        error: 'Failed to update favorite status. Please try again.'
-      }));
-      
-      // Re-throw the error to allow the UI to handle it if needed
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error('An unknown error occurred');
-    }
   };
 
   // Fetch trips from Firestore
@@ -391,13 +514,19 @@ export default function Dashboard() {
     }
   }, [user, fetchTrips, router]);
 
-  if (authLoading || dashboardState.loading) {
+  // Render loading state
+  if (dashboardState.loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
+  
+  // Handle trip edit
+  const handleEditTrip = (trip: Trip) => {
+    setTripToEdit(trip);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
@@ -407,8 +536,11 @@ export default function Dashboard() {
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Trips</h1>
           <div className="flex items-center space-x-4">
             <button
-              onClick={() => setDashboardState(prev => ({ ...prev, showNewTripForm: true }))}
-              className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              onClick={() => {
+                setTripToEdit(null);
+                updateDashboardState({ showNewTripForm: true });
+              }}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <FiPlus className="mr-2" />
               New Trip
@@ -462,6 +594,36 @@ export default function Dashboard() {
           </div>
         </header>
 
+        {/* Edit Trip Form Modal */}
+        {tripToEdit && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold">Edit Trip</h2>
+                  <button 
+                    onClick={() => setTripToEdit(null)}
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <FiX size={24} />
+                  </button>
+                </div>
+                <EditTripForm
+                  initialData={tripToEdit}
+                  onSubmit={async (data) => {
+                    const success = await handleUpdateTrip(tripToEdit.id, data);
+                    if (success) {
+                      setTripToEdit(null);
+                    }
+                  }}
+                  onCancel={() => setTripToEdit(null)}
+                  onDelete={() => handleDeleteTrip(tripToEdit.id)}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Filters */}
         <div className="mb-8 p-4 bg-white rounded-xl shadow-sm">
           <div className="flex flex-col md:flex-row md:items-center md:space-x-4 space-y-4 md:space-y-0">
@@ -501,50 +663,26 @@ export default function Dashboard() {
         </div>
 
         {/* Trips Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredTrips.length > 0 ? (
             filteredTrips.map((trip) => (
-              <div key={trip.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-                <div className="relative h-48">
-                  <img 
-                    src={trip.imageUrl || ""}
-                    alt={trip.title} 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-1">{trip.title}</h3>
-                  <p className="text-gray-600 text-sm mb-2">{trip.location}</p>
-                  {trip.description && (
-                    <p className="text-gray-500 text-xs mb-3 line-clamp-2">
-                      {trip.description}
-                    </p>
-                  )}
-                  
-                  <div className="flex items-center justify-between text-sm text-gray-500 mb-3">
-                    <div className="flex items-center">
-                      <FiCalendar className="mr-1" size={14} />
-                      {formatDate(trip.startDate)} - {formatDate(trip.endDate)}
-                    </div>
-                    <div className="flex items-center">
-                      <FiStar className="text-yellow-400 mr-1" size={14} />
-                      {trip.saved}
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="px-3 py-1 bg-indigo-100 text-indigo-800 text-xs font-medium rounded-full">
-                      {trip.type.charAt(0).toUpperCase() + trip.type.slice(1)}
-                    </span>
-                    <button 
-                      onClick={() => toggleFavorite(trip.id)}
-                      className="text-indigo-600 hover:text-indigo-800 text-sm font-medium"
-                    >
-                      Favorite
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <TripCard
+                key={trip.id}
+                id={trip.id}
+                title={trip.title}
+                location={trip.location}
+                startDate={trip.startDate}
+                endDate={trip.endDate}
+                description={trip.description}
+                imageUrl={trip.imageUrl || getTripImage(trip.type)}
+                type={trip.type}
+                saved={trip.saved || 0}
+                userId={trip.userId}
+                isFavorite={favoriteTrips.has(trip.id)}
+                onFavoriteToggle={handleToggleFavorite}
+                onEdit={handleEditTrip}
+                onViewDetails={() => setSelectedTrip(trip)}
+              />
             ))
           ) : (
             <div className="col-span-full text-center py-12">

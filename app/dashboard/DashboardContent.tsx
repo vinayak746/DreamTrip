@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { FiSearch, FiPlus, FiMapPin } from 'react-icons/fi';
+import { FiSearch, FiPlus, FiMapPin, FiHeart, FiStar } from 'react-icons/fi';
 import { useAuth } from '@/contexts/AuthContext';
 import TripCard from './components/TripCard';
 import NewTripModal from './components/NewTripModal';
+import { doc, updateDoc, arrayUnion, arrayRemove, getDoc } from 'firebase/firestore';
+import { getFirestoreDb } from '@/firebase/config';
 
 type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
 type FilterType = 'all' | TripType;
@@ -31,7 +33,57 @@ export default function DashboardContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [showNewTripModal, setShowNewTripModal] = useState(false);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
+
+  // Load user's favorite trips
+  useEffect(() => {
+    const loadFavorites = async () => {
+      if (!user?.uid) return;
+      
+      try {
+        const userDoc = await getDoc(doc(getFirestoreDb(), 'users', user.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          setFavorites(new Set(userData.favoriteTrips || []));
+        }
+      } catch (error) {
+        console.error('Error loading favorites:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadFavorites();
+  }, [user?.uid]);
+
+  const handleFavoriteToggle = async (tripId: string, isFavorite: boolean) => {
+    if (!user?.uid) return;
+    
+    try {
+      const userRef = doc(getFirestoreDb(), 'users', user.uid);
+      
+      if (isFavorite) {
+        await updateDoc(userRef, {
+          favoriteTrips: arrayUnion(tripId)
+        });
+        setFavorites(prev => new Set(prev).add(tripId));
+      } else {
+        await updateDoc(userRef, {
+          favoriteTrips: arrayRemove(tripId)
+        });
+        setFavorites(prev => {
+          const newFavorites = new Set(prev);
+          newFavorites.delete(tripId);
+          return newFavorites;
+        });
+      }
+    } catch (error) {
+      console.error('Error updating favorites:', error);
+      throw error;
+    }
+  };
   
   // Mock data - will be replaced with Firestore data
   const [trips, setTrips] = useState<Trip[]>([
@@ -104,9 +156,12 @@ export default function DashboardContent() {
   const filteredTrips = trips.filter(trip => {
     const matchesSearch = trip.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          trip.location.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = activeFilter === 'all' || trip.type === activeFilter;
-    return matchesSearch && matchesType;
+    const matchesFilter = activeFilter === 'all' || trip.type === activeFilter;
+    return matchesSearch && matchesFilter;
   });
+
+  // Get favorite trips
+  const favoriteTrips = trips.filter(trip => favorites.has(trip.id));
 
   if (!user) {
     return null;
@@ -156,19 +211,23 @@ export default function DashboardContent() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12">
         {/* Filter Chips */}
         <div className="mb-8 flex space-x-2 overflow-x-auto pb-2">
-          {(['all', 'leisure', 'business', 'adventure'] as FilterType[]).map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                activeFilter === filter
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'bg-white text-gray-700 hover:bg-gray-100 shadow-sm'
-              }`}
-            >
-              {filter.charAt(0).toUpperCase() + filter.slice(1)}
-            </button>
-          ))}
+          <button
+            onClick={() => setActiveFilter('all')}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center ${
+              activeFilter === 'all' 
+                ? 'bg-indigo-100 text-indigo-700' 
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            All Trips
+          </button>
+          <button
+            onClick={() => router.push('/dashboard/favorites')}
+            className="px-4 py-2 rounded-full text-sm font-medium bg-pink-100 text-pink-700 hover:bg-pink-200 transition-colors flex items-center"
+          >
+            <FiHeart className="mr-1.5" />
+            Favorites ({favoriteTrips.length})
+          </button>
         </div>
 
         {filteredTrips.length === 0 ? (
@@ -196,17 +255,13 @@ export default function DashboardContent() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredTrips.map((trip) => (
+            {filteredTrips.map(trip => (
             <TripCard
               key={trip.id}
-              id={trip.id}
-              title={trip.title}
-              location={trip.location}
-              startDate={trip.startDate}
-              endDate={trip.endDate}
-              imageUrl={trip.imageUrl}
-              type={trip.type}
-              onViewDetails={handleViewDetails}
+              {...trip}
+              isFavorite={favorites.has(trip.id)}
+              onFavoriteToggle={handleFavoriteToggle}
+              onViewDetails={(id) => router.push(`/dashboard/trips/${id}`)}
             />
           ))}
           </div>

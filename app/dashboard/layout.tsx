@@ -71,6 +71,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <FiHome size={20} />
             <span className="text-xs mt-1">Home</span>
           </Link>
+
+          <Link 
+            href="/dashboard/favorites" 
+            className={`flex flex-col items-center p-2 rounded-lg ${isActive('/dashboard/favorites') ? 'text-indigo-600' : 'text-gray-600'}`}
+          >
+            <FiHeart size={20} />
+            <span className="text-xs mt-1">Favorites</span>
+          </Link>
           
           <button 
             onClick={() => setShowNewTripModal(true)}

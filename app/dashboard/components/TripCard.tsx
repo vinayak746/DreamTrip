@@ -1,7 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { FiMapPin, FiCalendar, FiClock, FiArrowRight, FiMoreVertical, FiCompass, FiTrendingUp, FiStar } from 'react-icons/fi';
+import { FiMapPin, FiCalendar, FiClock, FiArrowRight, FiMoreVertical, FiCompass, FiTrendingUp, FiStar, FiHeart, FiEdit2 } from 'react-icons/fi';
 import { getTripImage } from '@/utils/tripImages';
+import { useAuth } from '@/contexts/AuthContext';
+import { doc, updateDoc, arrayUnion, arrayRemove, getDoc } from 'firebase/firestore';
+import { getFirestoreDb } from '@/firebase/config';
+import TripPreviewModal from './TripPreviewModal';
 
 type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
 
@@ -22,8 +26,13 @@ interface TripCardProps {
   endDate: string;
   imageUrl: string;
   type: TripType;
+  description?: string;
   saved?: number;
+  userId: string;
   onViewDetails: (id: string) => void;
+  onFavoriteToggle?: (tripId: string, isFavorite: boolean) => Promise<boolean>;
+  onEdit?: (trip: any) => void;
+  isFavorite?: boolean;
 }
 
 const typeIcons: TripTypeIcons = {
@@ -42,16 +51,29 @@ const typeLabels: TripTypeLabels = {
   family: 'Family'
 };
 
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+};
+
 export default function TripCard({
   id,
   title,
   location,
   startDate,
   endDate,
+  description = '',
+  isFavorite: initialIsFavorite = false,
+  onFavoriteToggle,
   imageUrl,
   type,
   saved = 0,
+  userId,
   onViewDetails,
+  onEdit,
 }: TripCardProps) {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -62,102 +84,179 @@ export default function TripCard({
 
   // Calculate days between dates
   const start = new Date(startDate);
-  const end = new Date(endDate);
-  const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const { user } = useAuth();
+  const [isFavorite, setIsFavorite] = useState(initialIsFavorite);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [displayImage, setDisplayImage] = useState(imageUrl || getTripImage(type));
+  const [showPreview, setShowPreview] = useState(false);
+  const isOwner = user?.uid === userId;
 
-  // Use the provided image URL or fall back to the default for the trip type
-  const displayImageUrl = imageUrl || getTripImage(type);
-  
+  const days = []; // This should be passed as a prop if needed
+
+  // Sync with parent component's favorite state
+  useEffect(() => {
+    setIsFavorite(initialIsFavorite);
+  }, [initialIsFavorite]);
+
+  const handleCardClick = () => {
+    setShowPreview(true);
+  };
+
+  const handleImageError = () => {
+    if (!imageError) {
+      setDisplayImage(getTripImage(type));
+      setImageError(true);
+    }
+  };
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onEdit) {
+      onEdit({
+        id,
+        title,
+        location,
+        startDate,
+        endDate,
+        description,
+        type,
+        imageUrl: displayImage,
+        userId
+      });
+    }
+  };
+
+  const handleFavoriteClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onFavoriteToggle) return;
+    
+    const newFavoriteState = !isFavorite;
+    setIsFavorite(newFavoriteState);
+    
+    try {
+      const success = await onFavoriteToggle(id, newFavoriteState);
+      if (!success) {
+        // Revert if the toggle was not successful
+        setIsFavorite(!newFavoriteState);
+      }
+    } catch (error) {
+      console.error('Error updating favorite status:', error);
+      // Revert on error
+      setIsFavorite(!newFavoriteState);
+    }
+  };
+
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 h-full flex flex-col">
-      <div className="relative h-48">
-        <Image
-          src={displayImageUrl}
-          alt={`${title} trip`}
-          fill
-          className="object-cover"
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          priority
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-        
-        {/* Top right save button */}
-        <button 
-          className="absolute top-3 right-3 p-1.5 bg-white/90 rounded-full text-gray-700 hover:bg-white transition-colors group"
-          onClick={(e) => {
-            e.stopPropagation();
-            // TODO: Implement save functionality
-            console.log('Save trip:', id);
-          }}
+    <div className="relative">
+      <div 
+        className="card bg-card-bg border border-card-border hover:shadow-md transition-shadow duration-300 relative overflow-hidden h-full flex flex-col"
+      >
+        {isOwner && onEdit && (
+          <div className="absolute top-2 right-2 flex space-x-2 z-10">
+            <button
+              onClick={handleEditClick}
+              className="p-2 bg-white/80 rounded-full hover:bg-white transition-colors"
+              aria-label="Edit trip"
+            >
+              <FiEdit2 className="w-4 h-4 text-gray-700 dark:text-gray-300" />
+            </button>
+            <button
+              onClick={handleFavoriteClick}
+              className={`p-2 rounded-full ${isFavorite ? 'text-red-500' : 'text-white/80 hover:text-white'} bg-black/20 backdrop-blur-sm`}
+              aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <FiHeart className={`w-5 h-5 ${isFavorite ? 'fill-current' : ''}`} />
+            </button>
+          </div>
+        )}
+
+        <div 
+          className="relative h-48 w-full cursor-pointer" 
+          onClick={handleCardClick}
         >
-          <FiStar 
-            size={18} 
-            className={saved > 0 ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400 group-hover:text-yellow-500'} 
+          <Image
+            src={displayImage}
+            alt={title}
+            fill
+            className="object-cover"
+            onError={handleImageError}
           />
-          {saved > 0 && (
-            <span className="absolute -bottom-2 -right-2 bg-yellow-100 text-yellow-800 text-xs font-medium px-1.5 py-0.5 rounded-full">
-              {saved}
-            </span>
-          )}
-        </button>
-        
-        <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="text-xl font-semibold mb-1">{title}</h3>
-              <div className="flex items-center text-sm opacity-90">
-                <FiMapPin className="mr-1.5 flex-shrink-0" size={14} />
-                <span className="truncate">{location}</span>
+        </div>
+
+        <div className="p-4 flex-1 flex flex-col">
+          <div className="flex-1">
+            <div className="flex justify-between items-start">
+              <h3 className="text-lg font-semibold text-foreground line-clamp-2">{title}</h3>
+              <div className="flex items-center space-x-2 ml-2 flex-shrink-0">
+                {typeIcons[type as keyof typeof typeIcons]}
+                <span className="text-sm text-muted-foreground">
+                  {typeLabels[type as keyof typeof typeLabels]}
+                </span>
               </div>
             </div>
-            <div className="bg-white/90 backdrop-blur-sm rounded-full px-3 py-1 text-xs font-medium border border-gray-200 text-gray-800">
-              {days} {days === 1 ? 'Day' : 'Days'}
+            
+            <div className="mt-2 flex items-center text-sm text-muted-foreground">
+              <FiMapPin className="mr-1 flex-shrink-0" />
+              <span className="truncate">{location}</span>
             </div>
-          </div>
-        </div>
-      </div>
-      
-      <div className="p-4 border-t-2 border-gray-100">
-        <div className="flex justify-between items-center text-sm text-gray-700 mb-4">
-          <div className="flex items-center space-x-2">
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-              {typeIcons[type]}
-              <span className="ml-1">{typeLabels[type]}</span>
-            </span>
-            <span className="text-gray-400">•</span>
-            <div className="flex items-center text-gray-600">
-              <FiCalendar className="mr-1.5 text-indigo-500" size={14} />
-              <span>
+            
+            <div className="mt-2 flex items-center text-sm text-muted-foreground">
+              <FiCalendar className="mr-1 flex-shrink-0" />
+              <span className="truncate">
                 {formatDate(startDate)} - {formatDate(endDate)}
               </span>
             </div>
           </div>
-          <div className="flex items-center text-gray-600">
-            <FiClock className="mr-1.5 text-indigo-500" size={14} />
-            <span>{days} {days === 1 ? 'Day' : 'Days'}</span>
+          
+          <div className="mt-3 pt-3 border-t border-border flex justify-between items-center">
+            <div className="flex items-center text-sm text-muted-foreground">
+              <FiClock className="mr-1" />
+              <span>{days?.length || 0} day{days?.length !== 1 ? 's' : ''}</span>
+            </div>
+            
+            {saved > 0 && (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                Saved ${saved}
+              </span>
+            )}
           </div>
         </div>
-        
-        <div className="flex space-x-2">
-          <button
-            onClick={() => onViewDetails(id)}
-            className="flex-1 flex items-center justify-center py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors duration-200 group"
-          >
-            View Details
-            <FiArrowRight className="ml-2 group-hover:translate-x-1 transition-transform duration-200" size={16} />
-          </button>
-          <button 
-            className="p-2.5 rounded-lg border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors group"
-            onClick={(e) => {
-              e.stopPropagation();
-              // TODO: Implement more options menu
-              console.log('More options for trip:', id);
-            }}
-          >
-            <FiMoreVertical size={16} className="group-hover:text-indigo-600" />
-          </button>
-        </div>
       </div>
+
+      {showPreview && (
+        <TripPreviewModal
+          trip={{
+            id,
+            title,
+            location,
+            startDate,
+            endDate,
+            type,
+            imageUrl: displayImage,
+            description: description || '',
+            days: [],
+            userId,
+            saved
+          }}
+          isOpen={showPreview}
+          onClose={() => setShowPreview(false)}
+          onEdit={onEdit ? () => onEdit({
+            id,
+            title,
+            location,
+            startDate,
+            endDate,
+            type,
+            imageUrl: displayImage,
+            description: description || '',
+            days: []
+          }) : undefined}
+          isOwner={isOwner}
+          isFavorite={isFavorite}
+          onToggleFavorite={handleFavoriteClick}
+        />
+      )}
     </div>
   );
 }
