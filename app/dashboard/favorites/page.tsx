@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { FiArrowLeft, FiArrowRight, FiHeart, FiMapPin, FiCalendar, FiStar, FiCompass, FiTrendingUp, FiClock } from 'react-icons/fi';
+import { FiArrowLeft, FiArrowRight, FiHeart, FiMapPin, FiCalendar, FiStar, FiCompass, FiTrendingUp, FiClock, FiImage } from 'react-icons/fi';
 import { doc, getDoc, onSnapshot, updateDoc, arrayRemove, DocumentData, DocumentSnapshot } from 'firebase/firestore';
 import { getFirestoreDb } from '@/firebase/config';
 
@@ -221,14 +221,25 @@ export default function FavoritesPage() {
                 key={trip.id} 
                 className="group bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 border border-gray-100 hover:border-indigo-50 flex flex-col h-full transform hover:-translate-y-1"
               >
-                <div className="relative h-48">
-                  <Image
-                    src={trip.imageUrl}
-                    alt={trip.title}
-                    fill
-                    className="object-cover group-hover:scale-105 transition-transform duration-500"
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  />
+                <div className="relative h-48 bg-gray-100">
+                  {trip.imageUrl ? (
+                    <Image
+                      src={trip.imageUrl}
+                      alt={trip.title}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.onerror = null;
+                        target.src = '/placeholder-trip.jpg';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
+                      <FiImage className="text-gray-400 w-12 h-12" />
+                    </div>
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent">
                     <div className="absolute top-4 right-4">
                       <button
