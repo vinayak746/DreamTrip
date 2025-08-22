@@ -95,17 +95,30 @@ export default function Dashboard() {
   };
 
   const handleCreateTrip = async (formData: TripFormData) => {
-    if (!user) return;
+    if (!user) {
+      setDashboardState(prev => ({
+        ...prev,
+        error: 'You must be logged in to create a trip.'
+      }));
+      return;
+    }
     
     try {
+      setDashboardState(prev => ({ ...prev, loading: true }));
+      
       // Create the trip data with required fields
-      const tripData: Omit<Trip, 'id' | 'createdAt' | 'updatedAt'> = {
+      const tripData = {
         ...formData,
         saved: 0,
         isFavorite: false,
-        days: [{ day: 1, location: formData.location, activities: [''] }],
+        days: [{ 
+          day: 1, 
+          location: formData.location, 
+          activities: [''] 
+        }],
         description: formData.description || '',
-        imageUrl: formData.imageUrl || ''
+        imageUrl: formData.imageUrl || '',
+        userId: user.uid // Ensure the user ID is included
       };
       
       // Create the trip in Firestore
@@ -121,20 +134,28 @@ export default function Dashboard() {
       };
       
       // Update the UI state
-      setDashboardState(prev => ({
-        ...prev,
-        trips: [formattedTrip, ...prev.trips],
-        filteredTrips: [formattedTrip, ...prev.filteredTrips],
-        showNewTripForm: false,
-        error: null
-      }));
+      setDashboardState(prev => {
+        const updatedTrips = [formattedTrip, ...prev.trips];
+        return {
+          ...prev,
+          trips: updatedTrips,
+          filteredTrips: updatedTrips, // Update filtered trips to include the new one
+          showNewTripForm: false,
+          loading: false,
+          error: null
+        };
+      });
+      
+      return formattedTrip;
       
     } catch (error) {
       console.error('Error creating trip:', error);
       setDashboardState(prev => ({
         ...prev,
+        loading: false,
         error: 'Failed to create trip. Please try again.'
       }));
+      throw error; // Re-throw to allow form to handle the error
     }
   };
 
@@ -172,18 +193,29 @@ export default function Dashboard() {
   };
 
   const toggleFavorite = async (tripId: string) => {
-    if (!user) return;
+    if (!user) {
+      setDashboardState(prev => ({
+        ...prev,
+        error: 'You must be logged in to favorite trips.'
+      }));
+      return;
+    }
     
     try {
       const trip = dashboardState.trips.find(t => t.id === tripId);
-      if (!trip) return;
+      if (!trip) {
+        console.error('Trip not found:', tripId);
+        return;
+      }
       
-      const isFavorite = !trip.isFavorite;
-      await tripService.toggleFavorite(user.uid, tripId, !isFavorite);
+      const newFavoriteStatus = !trip.isFavorite;
       
+      // Optimistic UI update
       setDashboardState(prev => {
         const updatedTrips = prev.trips.map(t => 
-          t.id === tripId ? { ...t, isFavorite, updatedAt: new Date().toISOString() } : t
+          t.id === tripId 
+            ? { ...t, isFavorite: newFavoriteStatus, updatedAt: new Date().toISOString() } 
+            : t
         );
         
         return {
@@ -202,13 +234,38 @@ export default function Dashboard() {
             
             return matchesSearch && matchesFilter;
           }),
+          error: null
         };
       });
+      
+      // Update in Firestore
+      await tripService.updateTrip(user.uid, tripId, { 
+        isFavorite: newFavoriteStatus,
+        updatedAt: new Date().toISOString()
+      });
+      
     } catch (error) {
       console.error('Error updating favorite status:', error);
+      
+      // Revert optimistic update on error
+      setDashboardState(prev => {
+        const originalTrips = prev.trips.map(t => 
+          t.id === tripId ? { ...t, isFavorite: !t.isFavorite } : t
+        );
+        
+        return {
+          ...prev,
+          trips: originalTrips,
+          filteredTrips: originalTrips,
+          error: 'Failed to update favorite status. Please try again.'
+        };
+      });
+      
+      throw error; // Re-throw to allow UI to handle the error
     }
   };
 
+  // Fetch trips from Firestore
   const fetchTrips = useCallback(async () => {
     if (!user) {
       console.error('No authenticated user');
@@ -221,19 +278,19 @@ export default function Dashboard() {
     }
     
     try {
+      setDashboardState(prev => ({ ...prev, loading: true }));
       console.log('Fetching trips for user:', user.uid);
+      
       const trips = await tripService.getTrips(user.uid);
       
       // Convert Firestore trip data to Trip interface
       const formattedTrips = trips.map(trip => {
         // Handle Firestore timestamps
         const convertTimestamp = (timestamp: any) => {
-          if (timestamp?.toDate) {
-            return timestamp.toDate().toISOString();
-          } else if (timestamp?.seconds) {
-            return new Date(timestamp.seconds * 1000).toISOString();
-          }
-          return new Date().toISOString();
+          if (!timestamp) return new Date().toISOString();
+          if (timestamp.toDate) return timestamp.toDate().toISOString();
+          if (timestamp.seconds) return new Date(timestamp.seconds * 1000).toISOString();
+          return new Date(timestamp).toISOString();
         };
         
         return {
@@ -245,7 +302,7 @@ export default function Dashboard() {
           endDate: trip.endDate || new Date().toISOString(),
           type: (trip.type || 'leisure') as TripType,
           imageUrl: trip.imageUrl || '',
-          saved: trip.saved || 0,
+          saved: typeof trip.saved === 'number' ? trip.saved : 0,
           days: Array.isArray(trip.days) ? trip.days : [],
           isFavorite: Boolean(trip.isFavorite),
           createdAt: convertTimestamp(trip.createdAt),
@@ -253,10 +310,15 @@ export default function Dashboard() {
         } as Trip;
       });
       
+      // Sort trips by creation date (newest first)
+      const sortedTrips = [...formattedTrips].sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      
       setDashboardState(prev => ({
         ...prev,
-        trips: formattedTrips,
-        filteredTrips: formattedTrips,
+        trips: sortedTrips,
+        filteredTrips: sortedTrips,
         loading: false,
         error: null
       }));

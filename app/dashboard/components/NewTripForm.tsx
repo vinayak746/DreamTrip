@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { FiX, FiCalendar, FiMapPin, FiImage, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { useState, useRef, ChangeEvent } from 'react';
+import { FiX, FiCalendar, FiMapPin, FiImage, FiPlus, FiTrash2, FiUpload, FiLoader } from 'react-icons/fi';
+import { uploadTripImage } from '@/services/storageService';
 
 type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
 
@@ -30,10 +31,55 @@ export default function NewTripForm({ onClose, onSubmit }: NewTripFormProps) {
     type: 'leisure',
     imageUrl: ''
   });
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file');
+      return;
+    }
+
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image size should be less than 5MB');
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      
+      // Show preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPreviewUrl(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      // Upload to Firebase Storage
+      const downloadURL = await uploadTripImage(file);
+      setFormData(prev => ({ ...prev, imageUrl: downloadURL }));
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Failed to upload image. Please try again.');
+      setPreviewUrl(null);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -141,19 +187,62 @@ export default function NewTripForm({ onClose, onSubmit }: NewTripFormProps) {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Image URL (optional)</label>
-            <div className="relative">
-              <FiImage className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="url"
-                name="imageUrl"
-                value={formData.imageUrl}
-                onChange={handleChange}
-                placeholder="https://example.com/image.jpg"
-                className="w-full pl-10 pr-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Trip Image
+            </label>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImageChange}
+              accept="image/*"
+              className="hidden"
+              disabled={isUploading}
+            />
+            
+            <div className="mt-1 flex items-center">
+              <button
+                type="button"
+                onClick={triggerFileInput}
+                disabled={isUploading}
+                className={`inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isUploading ? (
+                  <>
+                    <FiLoader className="animate-spin -ml-1 mr-2 h-4 w-4" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <FiUpload className="-ml-1 mr-2 h-4 w-4" />
+                    Choose an image
+                  </>
+                )}
+              </button>
+              
+              {formData.imageUrl && !isUploading && (
+                <span className="ml-3 text-sm text-gray-500">
+                  ✓ Image ready
+                </span>
+              )}
             </div>
+            
+            {previewUrl && (
+              <div className="mt-4">
+                <p className="text-sm text-gray-500 mb-2">Preview:</p>
+                <div className="border rounded-md overflow-hidden max-w-xs">
+                  <img 
+                    src={previewUrl} 
+                    alt="Preview" 
+                    className="w-full h-auto object-cover"
+                  />
+                </div>
+              </div>
+            )}
+            
+            <p className="mt-1 text-xs text-gray-500">
+              {isUploading ? 'Uploading...' : 'Upload an image (max 5MB, JPG/PNG)'}
+            </p>
           </div>
 
           <div className="pt-4 flex justify-end space-x-3">
