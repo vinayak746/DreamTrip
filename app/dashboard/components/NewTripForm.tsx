@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef, ChangeEvent } from 'react';
-import { FiX, FiCalendar, FiMapPin, FiImage, FiPlus, FiTrash2, FiUpload, FiLoader } from 'react-icons/fi';
-import { uploadTripImage } from '@/services/storageService';
+import { useState, useEffect } from 'react';
+import { FiX, FiCalendar, FiMapPin, FiImage } from 'react-icons/fi';
+import { getTripImage } from '@/utils/tripImages';
 
 type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
 
@@ -31,55 +31,28 @@ export default function NewTripForm({ onClose, onSubmit }: NewTripFormProps) {
     type: 'leisure',
     imageUrl: ''
   });
-  const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Update image URL when trip type changes
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      imageUrl: getTripImage(prev.type)
+    }));
+  }, [formData.type]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Check file type
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file');
-      return;
-    }
-
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Image size should be less than 5MB');
-      return;
-    }
-
-    try {
-      setIsUploading(true);
-      
-      // Show preview
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setPreviewUrl(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-
-      // Upload to Firebase Storage
-      const downloadURL = await uploadTripImage(file);
-      setFormData(prev => ({ ...prev, imageUrl: downloadURL }));
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      alert('Failed to upload image. Please try again.');
-      setPreviewUrl(null);
-    } finally {
-      setIsUploading(false);
-    }
+  const handleImageClick = () => {
+    // Just show a message that the image is automatically selected
+    alert('The image is automatically selected based on the trip type.');
   };
 
   const triggerFileInput = () => {
-    fileInputRef.current?.click();
+    // Removed fileInputRef.current?.click();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -191,58 +164,23 @@ export default function NewTripForm({ onClose, onSubmit }: NewTripFormProps) {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Trip Image
             </label>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageChange}
-              accept="image/*"
-              className="hidden"
-              disabled={isUploading}
-            />
-            
-            <div className="mt-1 flex items-center">
-              <button
-                type="button"
-                onClick={triggerFileInput}
-                disabled={isUploading}
-                className={`inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+            <div className="mt-1">
+              <div 
+                className="relative w-full h-32 bg-gray-100 rounded-lg flex items-center justify-center cursor-pointer overflow-hidden"
+                onClick={handleImageClick}
               >
-                {isUploading ? (
-                  <>
-                    <FiLoader className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <FiUpload className="-ml-1 mr-2 h-4 w-4" />
-                    Choose an image
-                  </>
-                )}
-              </button>
-              
-              {formData.imageUrl && !isUploading && (
-                <span className="ml-3 text-sm text-gray-500">
-                  ✓ Image ready
-                </span>
-              )}
-            </div>
-            
-            {previewUrl && (
-              <div className="mt-4">
-                <p className="text-sm text-gray-500 mb-2">Preview:</p>
-                <div className="border rounded-md overflow-hidden max-w-xs">
-                  <img 
-                    src={previewUrl} 
-                    alt="Preview" 
-                    className="w-full h-auto object-cover"
-                  />
+                <img 
+                  src={getTripImage(formData.type)} 
+                  alt="Trip preview" 
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                  <span className="text-white text-sm bg-black bg-opacity-70 px-2 py-1 rounded">
+                    Image selected by trip type
+                  </span>
                 </div>
               </div>
-            )}
-            
-            <p className="mt-1 text-xs text-gray-500">
-              {isUploading ? 'Uploading...' : 'Upload an image (max 5MB, JPG/PNG)'}
-            </p>
+            </div>
           </div>
 
           <div className="pt-4 flex justify-end space-x-3">

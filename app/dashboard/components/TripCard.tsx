@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import { FiMapPin, FiCalendar, FiClock, FiArrowRight, FiMoreVertical, FiCompass, FiTrendingUp, FiStar } from 'react-icons/fi';
+import { getTripImage } from '@/utils/tripImages';
 
 type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
 
@@ -54,11 +55,14 @@ export default function TripCard({
   const end = new Date(endDate);
   const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
+  // Use the provided image URL or fall back to the default for the trip type
+  const displayImageUrl = imageUrl || getTripImage(type);
+  
   return (
     <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border-2 border-gray-200 hover:border-gray-300">
-      <div className="relative h-48">
+      <div className="relative h-48 w-full overflow-hidden rounded-t-lg">
         <Image
-          src={imageUrl}
+          src={displayImageUrl}
           alt={title}
           fill
           className="object-cover"

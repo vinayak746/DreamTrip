@@ -16,8 +16,9 @@ export interface TripFormData {
   imageUrl?: string;
 }
 
-export interface Trip extends TripFormData {
+export interface Trip extends Omit<TripFormData, 'imageUrl'> {
   id: string;
+  imageUrl?: string;
   saved: number;
   days: TripDay[];
   isFavorite: boolean;

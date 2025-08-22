@@ -1,5 +1,9 @@
 {
   "projects": {
-    "default": "dreamtrip-vinny"
-  }
+    "default": "dreamtrip-test",
+    "production": "dreamtrip-vinny",
+    "test": "dreamtrip-test"
+  },
+  "targets": {},
+  "etags": {}
 }
