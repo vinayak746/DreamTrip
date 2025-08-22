@@ -31,7 +31,7 @@ export default function NewTripForm({ onClose, onSubmit }: NewTripFormProps) {
     type: 'leisure',
     imageUrl: ''
   });
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // Remove unused previewUrl state since we're not handling image uploads anymore
 
   // Update image URL when trip type changes
   useEffect(() => {
@@ -43,19 +43,12 @@ export default function NewTripForm({ onClose, onSubmit }: NewTripFormProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    if (name in formData) {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
-  const handleImageClick = () => {
-    // Just show a message that the image is automatically selected
-    alert('The image is automatically selected based on the trip type.');
-  };
-
-  const triggerFileInput = () => {
-    // Removed fileInputRef.current?.click();
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     // The parent component will handle adding the saved and days properties
     onSubmit(formData);
@@ -165,18 +158,15 @@ export default function NewTripForm({ onClose, onSubmit }: NewTripFormProps) {
               Trip Image
             </label>
             <div className="mt-1">
-              <div 
-                className="relative w-full h-32 bg-gray-100 rounded-lg flex items-center justify-center cursor-pointer overflow-hidden"
-                onClick={handleImageClick}
-              >
+              <div className="relative w-full h-32 bg-gray-100 rounded-lg overflow-hidden">
                 <img 
-                  src={getTripImage(formData.type)} 
-                  alt="Trip preview" 
+                  src={getTripImage(formData.type)}
+                  alt={`${formData.type} trip preview`}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
                   <span className="text-white text-sm bg-black bg-opacity-70 px-2 py-1 rounded">
-                    Image selected by trip type
+                    Image based on trip type
                   </span>
                 </div>
               </div>

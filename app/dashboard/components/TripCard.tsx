@@ -1,8 +1,18 @@
+import React from 'react';
 import Image from 'next/image';
 import { FiMapPin, FiCalendar, FiClock, FiArrowRight, FiMoreVertical, FiCompass, FiTrendingUp, FiStar } from 'react-icons/fi';
 import { getTripImage } from '@/utils/tripImages';
 
 type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
+
+// Define a type for the typeIcons and typeLabels objects
+type TripTypeIcons = {
+  [key in TripType]: React.ReactNode;
+};
+
+type TripTypeLabels = {
+  [key in TripType]: string;
+};
 
 interface TripCardProps {
   id: string;
@@ -16,7 +26,7 @@ interface TripCardProps {
   onViewDetails: (id: string) => void;
 }
 
-const typeIcons = {
+const typeIcons: TripTypeIcons = {
   leisure: <FiStar className="text-yellow-500" />,
   business: <FiTrendingUp className="text-blue-500" />,
   adventure: <FiCompass className="text-emerald-500" />,
@@ -24,7 +34,7 @@ const typeIcons = {
   family: <FiStar className="text-purple-500" />
 };
 
-const typeLabels = {
+const typeLabels: TripTypeLabels = {
   leisure: 'Leisure',
   business: 'Business',
   adventure: 'Adventure',
@@ -59,15 +69,15 @@ export default function TripCard({
   const displayImageUrl = imageUrl || getTripImage(type);
   
   return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border-2 border-gray-200 hover:border-gray-300">
-      <div className="relative h-48 w-full overflow-hidden rounded-t-lg">
+    <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 h-full flex flex-col">
+      <div className="relative h-48">
         <Image
           src={displayImageUrl}
-          alt={title}
+          alt={`${title} trip`}
           fill
           className="object-cover"
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          priority={false}
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+          priority
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
         

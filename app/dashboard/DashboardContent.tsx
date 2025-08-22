@@ -8,6 +8,7 @@ import TripCard from './components/TripCard';
 import NewTripModal from './components/NewTripModal';
 
 type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
+type FilterType = 'all' | TripType;
 
 interface Trip {
   id: string;
@@ -26,11 +27,11 @@ interface Trip {
 }
 
 export default function DashboardContent() {
-  const router = useRouter();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [showNewTripModal, setShowNewTripModal] = useState(false);
+  const router = useRouter();
   
   // Mock data - will be replaced with Firestore data
   const [trips, setTrips] = useState<Trip[]>([
@@ -80,8 +81,7 @@ export default function DashboardContent() {
   ]);
 
   const handleViewDetails = (tripId: string) => {
-    // TODO: Navigate to trip details page
-    console.log('Viewing details for trip:', tripId);
+    router.push(`/dashboard/trips/${tripId}`);
   };
 
   const handleCreateNewTrip = (tripData: {
@@ -100,6 +100,7 @@ export default function DashboardContent() {
     setTrips([newTrip, ...trips]);
   };
 
+  // Filter trips based on search query and active filter
   const filteredTrips = trips.filter(trip => {
     const matchesSearch = trip.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          trip.location.toLowerCase().includes(searchQuery.toLowerCase());
@@ -155,10 +156,10 @@ export default function DashboardContent() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12">
         {/* Filter Chips */}
         <div className="mb-8 flex space-x-2 overflow-x-auto pb-2">
-          {['all', 'leisure', 'business', 'adventure'].map((filter) => (
+          {(['all', 'leisure', 'business', 'adventure'] as FilterType[]).map((filter) => (
             <button
               key={filter}
-              onClick={() => setActiveFilter(filter as any)}
+              onClick={() => setActiveFilter(filter)}
               className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
                 activeFilter === filter
                   ? 'bg-indigo-600 text-white shadow-md'
@@ -195,16 +196,19 @@ export default function DashboardContent() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredTrips.map((trip) => {
-              const { days, saved, ...tripCardProps } = trip;
-              return (
-                <TripCard
-                  key={trip.id}
-                  {...tripCardProps}
-                  onViewDetails={handleViewDetails}
-                />
-              );
-            })}
+            {filteredTrips.map((trip) => (
+            <TripCard
+              key={trip.id}
+              id={trip.id}
+              title={trip.title}
+              location={trip.location}
+              startDate={trip.startDate}
+              endDate={trip.endDate}
+              imageUrl={trip.imageUrl}
+              type={trip.type}
+              onViewDetails={handleViewDetails}
+            />
+          ))}
           </div>
         )}
       </main>
