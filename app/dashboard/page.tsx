@@ -45,9 +45,10 @@ const convertTimestamp = (timestamp: any): string => {
   }
 };
 
-// Extend TripFormData to include imageFile
-interface ExtendedTripFormData extends TripFormData {
+// Extend TripFormData to include imageFile and make imageUrl required
+interface ExtendedTripFormData extends Omit<TripFormData, 'imageUrl'> {
   imageFile?: File;
+  imageUrl: string;
 }
 
 interface UserProfile {
@@ -100,13 +101,14 @@ export default function Dashboard() {
     userProfile: null,
     filters: {
       type: null,
-      location: null
+      location: null,
     },
     searchQuery: '',
     activeFilter: 'all',
-    loading: true,
-    error: null
+    loading: false,
+    error: null,
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Helper function to safely update dashboard state
   const updateDashboardState = useCallback((updates: Partial<DashboardState>) => {
@@ -160,15 +162,29 @@ export default function Dashboard() {
 
   // Upload image to Firebase Storage if a file is provided
   const uploadTripImage = async (file: File, tripId: string): Promise<string> => {
-    if (!file) return '';
+    if (!file) {
+      console.log('No file provided for upload, using default image');
+      return getTripImage('leisure'); // Return default image URL
+    }
+    
     try {
+      console.log('Starting image upload for file:', file.name);
       const storage = getStorage();
-      const storageRef = ref(storage, `trip-images/${tripId}/${file.name}`);
-      await uploadBytes(storageRef, file);
-      return await getDownloadURL(storageRef);
+      const fileName = `${Date.now()}-${file.name}`; // Add timestamp for uniqueness
+      const storageRef = ref(storage, `trip-images/${tripId}/${fileName}`);
+      
+      console.log('Uploading image to path:', `trip-images/${tripId}/${fileName}`);
+      const snapshot = await uploadBytes(storageRef, file);
+      console.log('Image upload successful, getting download URL');
+      
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      console.log('Got download URL:', downloadURL);
+      
+      return downloadURL;
     } catch (error) {
-      console.error('Error uploading image:', error);
-      return '';
+      console.error('Error in uploadTripImage:', error);
+      // Return a default image URL instead of empty string to prevent type issues
+      return getTripImage('leisure');
     }
   };
 
@@ -275,46 +291,89 @@ export default function Dashboard() {
 
   // Handle trip creation with image upload
   const handleCreateTrip = async (formData: ExtendedTripFormData) => {
+    if (!user?.uid) {
+      updateDashboardState({ 
+        loading: false,
+        error: 'User not authenticated.' 
+      });
+      throw new Error('User not authenticated');
+    }
+
+    setIsSubmitting(true);
+    
     try {
-      updateDashboardState({ loading: true });
+      updateDashboardState({ 
+        loading: true,
+        error: null 
+      });
       
       // Upload image if provided
-      let imageUrl = '';
+      let imageUrl = formData.imageUrl || getTripImage(formData.type || 'leisure');
+      
       if (formData.imageFile) {
-        imageUrl = await uploadTripImage(formData.imageFile, 'new-trip');
+        console.log('Processing image upload...');
+        try {
+          const tempTripId = `temp-${Date.now()}`;
+          imageUrl = await uploadTripImage(formData.imageFile, tempTripId);
+          console.log('Image uploaded successfully. URL:', imageUrl);
+        } catch (error) {
+          console.error('Error uploading image:', error);
+          // Continue with default image instead of failing
+          imageUrl = getTripImage(formData.type || 'leisure');
+          console.log('Using default image due to upload error');
+        }
       }
 
-      // Create trip with image URL
+      // Create trip data without the imageFile property
+      const { imageFile, ...tripData } = formData;
+      
       const newTripData = {
-        ...formData,
+        ...tripData,
         imageUrl,
         isFavorite: false,
         saved: 0,
         days: [],
-        userId: user?.uid || '',
+        userId: user.uid,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
+      console.log('Creating trip with final data:', newTripData);
+
       // Save trip to Firestore
-      const createdTrip = await tripService.createTrip(user?.uid || '', newTripData);
+      console.log('Calling tripService.createTrip...');
+      const createdTrip = await tripService.createTrip(user.uid, newTripData);
       
-      // Refresh trips list
+      if (!createdTrip?.id) {
+        throw new Error('Failed to create trip: No ID returned from service');
+      }
+      
+      console.log('Trip created successfully with ID:', createdTrip.id);
+      
+      // Refresh the trips list
       await fetchTrips();
       
-      // Update UI state
-      updateDashboardState({
+      // Close the form and reset loading state
+      updateDashboardState({ 
         showNewTripForm: false,
         loading: false,
-        error: null
+        error: null 
       });
+      
+      // Show success message
+      // You can add a toast notification here if you have one
+      return createdTrip;
       
     } catch (error) {
       console.error('Error creating trip:', error);
-      updateDashboardState({
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create trip.';
+      updateDashboardState({ 
         loading: false,
-        error: 'Failed to create trip. Please try again.'
+        error: errorMessage
       });
+      throw error;
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -745,6 +804,17 @@ export default function Dashboard() {
       </main>
 
       {/* Edit Trip Modal */}
+      {dashboardState.showNewTripForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <NewTripForm 
+              onClose={() => updateDashboardState({ showNewTripForm: false })} 
+              onSubmit={handleCreateTrip}
+              isSubmitting={isSubmitting}
+            />
+          </div>
+        </div>
+      )}
       {tripToEdit && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">

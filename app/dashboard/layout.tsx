@@ -49,14 +49,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Link>
           </nav>
           
-          <div className="mt-auto pt-4">
-            <button 
-              onClick={() => setShowNewTripModal(true)}
-              className="w-full flex items-center justify-center px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <FiPlus className="mr-2" size={18} />
-              New Trip
-            </button>
+          <div className="mt-auto pt-4 border-t border-gray-100">
+            <div className="text-center text-xs text-gray-500 mb-2">
+              © 2025 DreamTrip
+            </div>
           </div>
         </div>
       </div>
