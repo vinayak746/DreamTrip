@@ -155,21 +155,25 @@ export default function DashboardContent() {
 
   // Filter trips based on search query and active filter
   const filteredTrips = trips.filter(trip => {
-    const matchesSearch = trip.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         trip.location.toLowerCase().includes(searchQuery.toLowerCase());
+    const searchLower = searchQuery.toLowerCase();
+    const matchesSearch = searchQuery === '' || 
+                         trip.title.toLowerCase().includes(searchLower) ||
+                         trip.location.toLowerCase().includes(searchLower);
     const matchesFilter = activeFilter === 'all' || trip.type === activeFilter;
     return matchesSearch && matchesFilter;
   });
 
   // Get favorite trips
-  const favoriteTrips = trips.filter(trip => favorites.has(trip.id));
+  const favoriteTrips = filteredTrips.filter(trip => favorites.has(trip.id));
+  
+  const tripTypes: TripType[] = ['leisure', 'business', 'adventure', 'hiking', 'family'];
 
   if (!user) {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* New Trip Modal */}
       <NewTripModal
         isOpen={showNewTripModal}
@@ -178,96 +182,143 @@ export default function DashboardContent() {
       />
 
       {/* Header with Search */}
-      <div className="bg-indigo-600 pb-24">
+      <div className="bg-gradient-to-r from-blue-500 to-indigo-600 pb-20 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
-            <h1 className="text-2xl font-bold text-white">DreamTrip</h1>
+            <h1 className="text-3xl font-bold text-white tracking-tight">DreamTrip</h1>
             <button
               onClick={() => setShowNewTripModal(true)}
-              className="inline-flex items-center px-4 py-2.5 border-2 border-white text-sm font-medium rounded-lg shadow-sm text-white bg-transparent hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white"
+              className="inline-flex items-center px-5 py-2.5 text-sm font-medium rounded-full text-white bg-blue-600 hover:bg-blue-700 transition-all duration-200 transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400 shadow-md hover:shadow-lg"
             >
               <FiPlus className="mr-2 h-4 w-4" />
               New Trip
             </button>
           </div>
           
-          {/* Search Bar */}
-          <div className="max-w-2xl mx-auto pb-8">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <FiSearch className="h-5 w-5 text-gray-400" />
+          {/* Search and Filter Bar */}
+          <div className="max-w-4xl mx-auto pb-8 px-4">
+            <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FiSearch className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search destinations or activities..."
+                    className="block w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center space-x-2 overflow-x-auto pb-2 md:pb-0">
+                  <button
+                    onClick={() => setActiveFilter('all')}
+                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${
+                      activeFilter === 'all' 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    All Trips
+                  </button>
+                  {tripTypes.map((tripType) => (
+                    <button
+                      key={tripType}
+                      onClick={() => setActiveFilter(tripType)}
+                      className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex items-center ${
+                        activeFilter === tripType
+                          ? `${{
+                              leisure: 'bg-amber-100 text-amber-800',
+                              business: 'bg-blue-100 text-blue-800',
+                              adventure: 'bg-emerald-100 text-emerald-800',
+                              hiking: 'bg-red-100 text-red-800',
+                              family: 'bg-purple-100 text-purple-800'
+                            }[tripType]}` 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <span className="mr-1.5">
+                        {{
+                          leisure: '',
+                          business: '',
+                          adventure: '',
+                          hiking: '',
+                          family: ''
+                        }[tripType]}
+                      </span>
+                      {tripType.charAt(0).toUpperCase() + tripType.slice(1)}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <input
-                type="text"
-                className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-gray-900"
-                placeholder="Search trips..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
             </div>
           </div>
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-12">
-        {/* Filter Chips */}
-        <div className="mb-8 flex space-x-2 overflow-x-auto pb-2">
-          <button
-            onClick={() => setActiveFilter('all')}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center ${
-              activeFilter === 'all' 
-                ? 'bg-indigo-100 text-indigo-700' 
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            All Trips
-          </button>
-          <button
-            onClick={() => router.push('/dashboard/favorites')}
-            className="px-4 py-2 rounded-full text-sm font-medium bg-pink-100 text-pink-700 hover:bg-pink-200 transition-colors flex items-center"
-          >
-            <FiHeart className="mr-1.5" />
-            Favorites ({favoriteTrips.length})
-          </button>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10">
+        {/* Trip Grid */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900">
+              {activeFilter === 'all' ? 'All Trips' : `${activeFilter.charAt(0).toUpperCase() + activeFilter.slice(1)} Trips`}
+              {searchQuery && ` matching "${searchQuery}"`}
+            </h2>
+            <span className="text-sm text-gray-500">
+              {filteredTrips.length} {filteredTrips.length === 1 ? 'trip' : 'trips'} found
+            </span>
+          </div>
+          
+          {filteredTrips.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-xl shadow-sm">
+              <FiMapPin className="mx-auto h-16 w-16 text-gray-300" />
+              <h3 className="mt-4 text-lg font-medium text-gray-900">No trips found</h3>
+              <p className="mt-1 text-gray-500">
+                {searchQuery || activeFilter !== 'all' 
+                  ? 'Try adjusting your search or filter criteria'
+                  : 'Create your first trip to get started!'}
+              </p>
+              <div className="mt-6">
+                <button
+                  onClick={() => setShowNewTripModal(true)}
+                  className="inline-flex items-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                >
+                  <FiPlus className="-ml-1 mr-2 h-5 w-5" />
+                  New Trip
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {filteredTrips.map((trip) => (
+                <TripCard
+                  key={trip.id}
+                  id={trip.id}
+                  title={trip.title}
+                  location={trip.location}
+                  startDate={trip.startDate}
+                  endDate={trip.endDate}
+                  imageUrl={trip.imageUrl}
+                  type={trip.type}
+                  saved={trip.saved}
+                  description={trip.days?.map(day => day.activities[0]).join(' • ')}
+                  userId={user.uid}
+                  onViewDetails={handleViewDetails}
+                  onFavoriteToggle={handleFavoriteToggle}
+                  isFavorite={favorites.has(trip.id)}
+                  onEdit={(tripData) => {
+                    // Handle edit
+                    const updatedTrips = trips.map(t => 
+                      t.id === tripData.id ? { ...t, ...tripData } : t
+                    );
+                    setTrips(updatedTrips);
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
-
-        {filteredTrips.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-xl shadow-sm p-8">
-            <div className="mx-auto h-24 w-24 text-gray-300 mb-6">
-              <FiMapPin className="h-full w-full mx-auto" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              {searchQuery ? 'No matching trips found' : 'No trips yet'}
-            </h3>
-            <p className="text-gray-500 mb-6 max-w-md mx-auto">
-              {searchQuery 
-                ? 'We couldn\'t find any trips matching your search. Try adjusting your filters.'
-                : 'Plan your next adventure by creating a new trip.'}
-            </p>
-            <div>
-              <button
-                onClick={() => setShowNewTripModal(true)}
-                className="inline-flex items-center px-6 py-3 border-2 border-indigo-600 text-base font-medium rounded-lg shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-              >
-                <FiPlus className="mr-2 h-5 w-5" />
-                Create New Trip
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredTrips.map(trip => (
-       <TripCard
-       key={trip.id}
-       {...trip}
-       userId={user?.uid || ''}  // Add this line
-       isFavorite={favorites.has(trip.id)}
-       onFavoriteToggle={handleFavoriteToggle}
-       onViewDetails={(id) => router.push(`/dashboard/trips/${id}`)}
-     />
-          ))}
-          </div>
-        )}
       </main>
     </div>
   );

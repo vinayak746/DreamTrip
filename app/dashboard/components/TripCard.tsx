@@ -36,11 +36,11 @@ interface TripCardProps {
 }
 
 const typeIcons: TripTypeIcons = {
-  leisure: <FiStar className="text-yellow-500" />,
-  business: <FiTrendingUp className="text-blue-500" />,
-  adventure: <FiCompass className="text-emerald-500" />,
-  hiking: <FiMapPin className="text-red-500" />,
-  family: <FiStar className="text-purple-500" />
+  leisure: '🏖️',
+  business: '💼',
+  adventure: '🌋',
+  hiking: '🥾',
+  family: '👨‍👩‍👧‍👦'
 };
 
 const typeLabels: TripTypeLabels = {
@@ -49,6 +49,14 @@ const typeLabels: TripTypeLabels = {
   adventure: 'Adventure',
   hiking: 'Hiking',
   family: 'Family'
+};
+
+const typeColors = {
+  leisure: 'bg-amber-50 text-amber-700 border border-amber-100',
+  business: 'bg-blue-50 text-blue-700 border border-blue-100',
+  adventure: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
+  hiking: 'bg-red-50 text-red-700 border border-red-100',
+  family: 'bg-purple-50 text-purple-700 border border-purple-100'
 };
 
 const formatDate = (dateString: string) => {
@@ -148,78 +156,108 @@ export default function TripCard({
   };
 
   return (
-    <div className="relative">
+    <div className="group relative h-full">
       <div 
-        className="card bg-card-bg border border-card-border hover:shadow-md transition-shadow duration-300 relative overflow-hidden h-full flex flex-col"
+        className="h-full flex flex-col bg-white/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.04)] transition-all duration-300 border border-gray-100/80 hover:border-gray-200/80"
       >
-        {isOwner && onEdit && (
-          <div className="absolute top-2 right-2 flex space-x-2 z-10">
-            <button
-              onClick={handleEditClick}
-              className="p-2 bg-white/80 rounded-full hover:bg-white transition-colors"
-              aria-label="Edit trip"
-            >
-              <FiEdit2 className="w-4 h-4 text-gray-700 dark:text-gray-300" />
-            </button>
-            <button
-              onClick={handleFavoriteClick}
-              className={`p-2 rounded-full ${isFavorite ? 'text-red-500' : 'text-white/80 hover:text-white'} bg-black/20 backdrop-blur-sm`}
-              aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-            >
-              <FiHeart className={`w-5 h-5 ${isFavorite ? 'fill-current' : ''}`} />
-            </button>
-          </div>
-        )}
-
+        {/* Image with overlay */}
         <div 
-          className="relative h-48 w-full cursor-pointer" 
+          className="relative h-48 w-full cursor-pointer overflow-hidden"
           onClick={handleCardClick}
         >
-          <Image
-            src={displayImage}
-            alt={title}
-            fill
-            className="object-cover"
-            onError={handleImageError}
-          />
+          <div className="relative w-full h-full">
+            <Image
+              src={displayImage}
+              alt={title}
+              fill
+              className="object-cover transition-transform duration-700 group-hover:scale-105"
+              onError={handleImageError}
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              priority={false}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+          </div>
+          
+          {/* Top right actions */}
+          <div className="absolute top-3 right-3 flex space-x-2 z-10">
+            {isOwner && onEdit && (
+              <button
+                onClick={handleEditClick}
+                className="p-2 bg-white/90 backdrop-blur-sm rounded-full hover:bg-white transition-all hover:scale-110 shadow-sm hover:shadow-md text-gray-600 hover:text-gray-800"
+                aria-label="Edit trip"
+              >
+                <FiEdit2 className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={handleFavoriteClick}
+              className={`p-2 rounded-full backdrop-blur-sm transition-all hover:scale-110 ${
+                isFavorite 
+                  ? 'bg-white/90 text-red-500 shadow-sm' 
+                  : 'bg-white/80 text-gray-400 hover:bg-white/90 hover:text-red-500'
+              }`}
+              aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <FiHeart className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} />
+            </button>
+          </div>
+          
+          {/* Bottom info overlay */}
+          <div className="absolute bottom-0 left-0 right-0 p-5 pt-10 bg-gradient-to-t from-black/80 via-black/30 to-transparent">
+            <h3 className="text-lg font-semibold text-white line-clamp-2 tracking-tight">{title}</h3>
+            <div className="flex items-center mt-1.5 text-white/90">
+              <FiMapPin className="mr-1.5 flex-shrink-0 w-3.5 h-3.5" />
+              <span className="text-sm font-medium tracking-wide truncate">{location}</span>
+            </div>
+          </div>
         </div>
 
-        <div className="p-4 flex-1 flex flex-col">
+        {/* Card body */}
+        <div className="p-5 flex-1 flex flex-col">
           <div className="flex-1">
-            <div className="flex justify-between items-start">
-              <h3 className="text-lg font-semibold text-foreground line-clamp-2">{title}</h3>
-              <div className="flex items-center space-x-2 ml-2 flex-shrink-0">
+            <div className="flex items-center justify-between mb-4">
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                typeColors[type as keyof typeof typeColors]
+              }`}>
                 {typeIcons[type as keyof typeof typeIcons]}
-                <span className="text-sm text-muted-foreground">
-                  {typeLabels[type as keyof typeof typeLabels]}
+                <span className="ml-1.5">{typeLabels[type as keyof typeof typeLabels]}</span>
+              </span>
+              {saved > 0 && (
+                <span className="text-sm text-gray-500 flex items-center">
+                  <FiStar className="text-yellow-400 mr-1" size={14} />
+                  {saved}
                 </span>
-              </div>
+              )}
             </div>
             
-            <div className="mt-2 flex items-center text-sm text-muted-foreground">
-              <FiMapPin className="mr-1 flex-shrink-0" />
-              <span className="truncate">{location}</span>
-            </div>
-            
-            <div className="mt-2 flex items-center text-sm text-muted-foreground">
-              <FiCalendar className="mr-1 flex-shrink-0" />
-              <span className="truncate">
+            <div className="mt-3 flex items-center text-sm text-gray-500 font-medium">
+              <FiCalendar className="mr-2 flex-shrink-0 text-gray-400" size={14} />
+              <span className="tracking-wide">
                 {formatDate(startDate)} - {formatDate(endDate)}
               </span>
             </div>
+            
+            {description && (
+              <p className="mt-3 text-sm text-gray-500/90 leading-relaxed line-clamp-2">
+                {description}
+              </p>
+            )}
           </div>
           
-          <div className="mt-3 pt-3 border-t border-border flex justify-between items-center">
-            <div className="flex items-center text-sm text-muted-foreground">
-              <FiClock className="mr-1" />
-              <span>{days?.length || 0} day{days?.length !== 1 ? 's' : ''}</span>
+          <div className="mt-4 pt-4 border-t border-gray-100/70 flex justify-between items-center">
+            <div className="text-sm text-gray-400 font-medium">
+              {days.length} day{days.length !== 1 ? 's' : ''} • {location.split(',')[0]}
             </div>
-            
-            {saved > 0 && (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                Saved ${saved}
-              </span>
-            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDetails(id);
+              }}
+              className="inline-flex items-center text-sm font-medium text-blue-500 hover:text-blue-600 transition-colors px-3 py-1.5 -mr-2 rounded-lg hover:bg-blue-50/50"
+            >
+              View Details
+              <FiArrowRight className="ml-1.5" size={14} />
+            </button>
           </div>
         </div>
       </div>
@@ -241,15 +279,15 @@ export default function TripCard({
           }}
           isOpen={showPreview}
           onClose={() => setShowPreview(false)}
-          onEdit={onEdit ? () => onEdit({
+          onEdit={onEdit ? (trip) => onEdit({
             id,
-            title,
-            location,
-            startDate,
-            endDate,
-            type,
+            title: trip.title,
+            location: trip.location,
+            startDate: trip.startDate,
+            endDate: trip.endDate,
+            type: trip.type,
             imageUrl: displayImage,
-            description: description || '',
+            description: trip.description || '',
             days: []
           }) : undefined}
           isOwner={isOwner}

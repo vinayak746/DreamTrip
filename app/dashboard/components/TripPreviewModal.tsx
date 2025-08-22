@@ -27,7 +27,7 @@ interface TripPreviewModalProps {
   trip: Trip;
   isOpen: boolean;
   onClose: () => void;
-  onEdit?: () => void;
+  onEdit?: (trip: Trip) => void;
   isOwner: boolean;
   isFavorite: boolean;
   onToggleFavorite: (e: React.MouseEvent) => void;
@@ -71,7 +71,7 @@ export default function TripPreviewModal({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onEdit();
+                  onEdit?.(trip);
                 }}
                 className="bg-white/90 hover:bg-white text-gray-800 p-2 rounded-full shadow-md transition-colors"
                 aria-label="Edit trip"
@@ -192,7 +192,7 @@ export default function TripPreviewModal({
             {isOwner && onEdit && (
               <div className="mt-6 flex justify-end">
                 <button
-                  onClick={onEdit}
+                  onClick={() => onEdit?.(trip)}
                   className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Edit Trip
