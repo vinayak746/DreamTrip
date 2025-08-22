@@ -174,9 +174,11 @@ export default function Home() {
             )}
             
             <form className="mt-6 space-y-6" onSubmit={handleSubmit}>
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="email-address" className="sr-only">Email address</label>
+              <div className="space-y-5">
+                <div className="space-y-1">
+                  <label htmlFor="email-address" className="block text-sm font-medium text-gray-700">
+                    Email address
+                  </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <EmailIcon />
@@ -189,14 +191,22 @@ export default function Home() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out"
-                      placeholder="Email address"
+                      className="block w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-md shadow-sm 
+                        placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
+                        sm:text-sm transition duration-150 ease-in-out"
+                      placeholder="you@example.com"
                       disabled={authLoading}
+                      style={{ 
+                        backgroundColor: '#ffffff',
+                        paddingLeft: '2.5rem'  // Ensure enough space for the icon
+                      }}
                     />
                   </div>
                 </div>
-                <div>
-                  <label htmlFor="password" className="sr-only">Password</label>
+                <div className="space-y-1">
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                    Password
+                  </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <PasswordIcon />
@@ -209,10 +219,15 @@ export default function Home() {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm transition duration-150 ease-in-out"
-                      placeholder="Password"
+                      className="block w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-md shadow-sm 
+                        placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent 
+                        sm:text-sm transition duration-150 ease-in-out"
+                      placeholder={isLogin ? 'Enter your password' : 'Create a password'}
                       disabled={authLoading}
-                      minLength={isLogin ? 6 : 8}
+                      style={{ 
+                        backgroundColor: '#ffffff',
+                        paddingLeft: '2.5rem'  // Ensure enough space for the icon
+                      }}
                     />
                   </div>
                   {!isLogin && (
