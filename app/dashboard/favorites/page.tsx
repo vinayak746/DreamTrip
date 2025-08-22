@@ -3,9 +3,21 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { FiArrowLeft, FiArrowRight, FiHeart, FiMapPin, FiCalendar, FiStar, FiCompass, FiTrendingUp, FiClock, FiImage } from 'react-icons/fi';
+import { 
+  FiArrowRight, 
+  FiHeart, 
+  FiMapPin, 
+  FiCalendar, 
+  FiArrowLeft,
+  FiCameraOff,
+  FiStar,
+  FiTrendingUp,
+  FiCompass
+} from 'react-icons/fi';
+import { getTripImage } from '@/utils/tripImages';
 import { doc, getDoc, onSnapshot, updateDoc, arrayRemove, DocumentData, DocumentSnapshot } from 'firebase/firestore';
 import { getFirestoreDb } from '@/firebase/config';
+import TripPreviewModal from '../components/TripPreviewModal';
 
 // Utility function to split array into chunks
 function arrayChunk<T>(array: T[], size: number): T[][] {
@@ -24,10 +36,11 @@ type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
 interface Trip {
   id: string;
   title: string;
+  description: string;
   location: string;
   startDate: string;
   endDate: string;
-  type: TripType;
+  type: 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
   imageUrl: string;
   saved?: number;
   days?: Array<{
@@ -60,6 +73,9 @@ export default function FavoritesPage() {
   const [loading, setLoading] = useState(true);
   const [favoriteTrips, setFavoriteTrips] = useState<Trip[]>([]);
   const [favoriteTripIds, setFavoriteTripIds] = useState<Set<string>>(new Set());
+  const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
 
   // Load user's favorite trips with real-time updates
   useEffect(() => {
@@ -153,13 +169,14 @@ export default function FavoritesPage() {
     };
   }, [user?.uid]);
 
-  const formatDate = (dateString: string) => {
+  // Helper function to format date
+  function formatDate(dateString: string) {
     return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
       month: 'short',
-      day: 'numeric',
-      year: 'numeric'
+      day: 'numeric'
     });
-  };
+  }
 
   if (authLoading || loading) {
     return (
@@ -232,12 +249,21 @@ export default function FavoritesPage() {
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.onerror = null;
-                        target.src = '/placeholder-trip.jpg';
+                        target.src = getTripImage(trip.type);
                       }}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-                      <FiImage className="text-gray-400 w-12 h-12" />
+                    <div className="w-full h-full">
+                      <Image
+                        src={getTripImage(trip.type)}
+                        alt={trip.title}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                        <FiCameraOff className="text-white/70 w-8 h-8" />
+                      </div>
                     </div>
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent">
@@ -283,7 +309,11 @@ export default function FavoritesPage() {
                   </div>
                   <div className="mt-auto">
                     <button
-                      onClick={() => router.push(`/dashboard/trips/${trip.id}`)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTrip(trip);
+                        setIsPreviewOpen(true);
+                      }}
                       className="w-full py-2.5 px-4 bg-white border border-gray-200 rounded-xl text-sm font-medium text-indigo-600 hover:bg-indigo-50 hover:border-indigo-100 transition-all duration-200 flex items-center justify-center group-hover:shadow-sm"
                     >
                       <span>View Details</span>
@@ -296,6 +326,19 @@ export default function FavoritesPage() {
           </div>
         )}
       </div>
+      {selectedTrip && (
+        <TripPreviewModal
+          trip={selectedTrip}
+          isOpen={isPreviewOpen}
+          onClose={() => setIsPreviewOpen(false)}
+          isOwner={false}
+          isFavorite={true}
+          onToggleFavorite={(e) => {
+            e.stopPropagation();
+            // handleRemoveFavorite(selectedTrip.id);
+          }}
+        />
+      )}
     </div>
   );
-}
+};
