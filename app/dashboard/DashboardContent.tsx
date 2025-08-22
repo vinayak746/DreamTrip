@@ -58,8 +58,8 @@ export default function DashboardContent() {
     loadFavorites();
   }, [user?.uid]);
 
-  const handleFavoriteToggle = async (tripId: string, isFavorite: boolean) => {
-    if (!user?.uid) return;
+  const handleFavoriteToggle = async (tripId: string, isFavorite: boolean): Promise<boolean> => {
+    if (!user?.uid) return false;
     
     try {
       const userRef = doc(getFirestoreDb(), 'users', user.uid);
@@ -79,9 +79,10 @@ export default function DashboardContent() {
           return newFavorites;
         });
       }
+      return true;
     } catch (error) {
       console.error('Error updating favorites:', error);
-      throw error;
+      return false;
     }
   };
   
@@ -256,13 +257,14 @@ export default function DashboardContent() {
         ) : (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {filteredTrips.map(trip => (
-            <TripCard
-              key={trip.id}
-              {...trip}
-              isFavorite={favorites.has(trip.id)}
-              onFavoriteToggle={handleFavoriteToggle}
-              onViewDetails={(id) => router.push(`/dashboard/trips/${id}`)}
-            />
+       <TripCard
+       key={trip.id}
+       {...trip}
+       userId={user?.uid || ''}  // Add this line
+       isFavorite={favorites.has(trip.id)}
+       onFavoriteToggle={handleFavoriteToggle}
+       onViewDetails={(id) => router.push(`/dashboard/trips/${id}`)}
+     />
           ))}
           </div>
         )}
