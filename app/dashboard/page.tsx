@@ -743,6 +743,39 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      {/* Edit Trip Modal */}
+      {tripToEdit && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-900">Edit Trip</h2>
+                <button
+                  onClick={() => setTripToEdit(null)}
+                  className="text-gray-400 hover:text-gray-500"
+                >
+                  <FiX size={24} />
+                </button>
+              </div>
+              <EditTripForm
+                initialData={tripToEdit}
+                onSubmit={async (formData) => {
+                  await handleUpdateTrip(tripToEdit.id, formData);
+                }}
+                onCancel={() => setTripToEdit(null)}
+                onDelete={async () => {
+                  const result = await handleDeleteTrip(tripToEdit.id);
+                  if (result) {
+                    setTripToEdit(null);
+                  }
+                  return result;
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
