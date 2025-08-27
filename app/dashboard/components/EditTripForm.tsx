@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FiX, FiCalendar, FiMapPin, FiImage, FiTag, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { FiX, FiCalendar, FiMapPin, FiImage, FiTag, FiEdit2, FiTrash2, FiPlus, FiLoader } from 'react-icons/fi';
 import { getTripImage } from '@/utils/tripImages';
-
-type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
+import { TripType } from '@/types/trip';
 
 interface TripFormData {
   id: string;
@@ -15,7 +14,9 @@ interface TripFormData {
   endDate: string;
   type: TripType;
   imageUrl: string;
+  imageUrls?: string[];
   userId: string;
+  imageFiles?: File[];
 }
 
 interface EditTripFormProps {
@@ -30,18 +31,135 @@ const typeIcons = {
   business: '💼',
   adventure: '🌋',
   hiking: '🥾',
-  family: '👨‍👩‍👧‍👦'
+  family: '👨‍👩‍👧‍👦',
+  roadtrip: '🚗',
+  beach: '🏝️',
+  mountain: '⛰️',
+  city: '🏙️',
+  cruise: '🚢',
+  solo: '🧳',
+  other: '✈️'
+};
+
+const typeLabels = {
+  leisure: 'Leisure',
+  business: 'Business',
+  adventure: 'Adventure',
+  hiking: 'Hiking',
+  family: 'Family',
+  roadtrip: 'Road Trip',
+  beach: 'Beach',
+  mountain: 'Mountain',
+  city: 'City',
+  cruise: 'Cruise',
+  solo: 'Solo',
+  other: 'Other'
 };
 
 export default function EditTripForm({ initialData, onSubmit, onCancel, onDelete }: EditTripFormProps) {
-  const [formData, setFormData] = useState<TripFormData>(initialData);
+  const [formData, setFormData] = useState<TripFormData>({
+    ...initialData,
+    imageUrls: initialData.imageUrls || [initialData.imageUrl],
+    imageFiles: []
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isImageUploading, setIsImageUploading] = useState(false);
+  const [formErrors, setFormErrors] = useState<Partial<Record<keyof TripFormData, string>>>({});
 
   // Update form data when initialData prop changes
   useEffect(() => {
-    setFormData(initialData);
+    setFormData(prev => ({
+      ...initialData,
+      imageUrls: initialData.imageUrls || [initialData.imageUrl],
+      imageFiles: prev.imageFiles || []
+    }));
   }, [initialData]);
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const maxFiles = 10 - (formData.imageUrls?.length || 0);
+    if (files.length > maxFiles) {
+      setFormErrors(prev => ({
+        ...prev,
+        imageUrl: `You can only upload up to ${maxFiles} more images`
+      }));
+      return;
+    }
+
+    const validFiles: File[] = [];
+    const maxSizeMB = 5;
+
+    for (const file of files) {
+      if (!file.type.match('image.*')) {
+        setFormErrors(prev => ({
+          ...prev,
+          imageUrl: 'Only image files are allowed (JPEG, PNG, WebP)'
+        }));
+        continue;
+      }
+      
+      if (file.size > maxSizeMB * 1024 * 1024) {
+        setFormErrors(prev => ({
+          ...prev,
+          imageUrl: `Image size should be less than ${maxSizeMB}MB`
+        }));
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    // Add files to state for preview
+    setFormData(prev => ({
+      ...prev,
+      imageFiles: [...(prev.imageFiles || []), ...validFiles]
+    }));
+    
+    setFormErrors(prev => ({ ...prev, imageUrl: '' }));
+    
+    // Upload files if we have valid ones
+    if (validFiles.length > 0) {
+      setIsImageUploading(true);
+      
+      try {
+        const { uploadTripImages } = await import('@/services/storageService');
+        const uploadedUrls = await uploadTripImages(validFiles);
+        
+        // Update with the actual Cloudinary URLs
+        setFormData(prev => ({
+          ...prev,
+          imageUrls: [...(prev.imageUrls || []), ...uploadedUrls]
+        }));
+        
+      } catch (error) {
+        console.error('Error uploading images:', error);
+        setFormErrors(prev => ({
+          ...prev,
+          imageUrl: error instanceof Error ? error.message : 'Failed to upload images. Please try again.'
+        }));
+      } finally {
+        setIsImageUploading(false);
+      }
+    }
+  };
+
+  const handleRemoveImage = (index: number, isNew = false) => {
+    if (isNew) {
+      // Remove from new files
+      setFormData(prev => ({
+        ...prev,
+        imageFiles: prev.imageFiles?.filter((_, i) => i !== index) || []
+      }));
+    } else {
+      // Remove from existing URLs
+      setFormData(prev => ({
+        ...prev,
+        imageUrls: prev.imageUrls?.filter((_, i) => i !== index) || []
+      }));
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -50,15 +168,75 @@ export default function EditTripForm({ initialData, onSubmit, onCancel, onDelete
     }
   };
 
+  const validateForm = (): boolean => {
+    const errors: Partial<Record<keyof TripFormData, string>> = {};
+    
+    if (!formData.title.trim()) {
+      errors.title = 'Title is required';
+    }
+    
+    if (!formData.location.trim()) {
+      errors.location = 'Location is required';
+    }
+    
+    if (!formData.startDate) {
+      errors.startDate = 'Start date is required';
+    }
+    
+    if (!formData.endDate) {
+      errors.endDate = 'End date is required';
+    } else if (formData.startDate && new Date(formData.endDate) < new Date(formData.startDate)) {
+      errors.endDate = 'End date cannot be before start date';
+    }
+    
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (isSubmitting) return;
     
+    if (!validateForm()) return;
+    
     setIsSubmitting(true);
+    
     try {
-      await onSubmit(formData);
+      // Upload any new images if there are any
+      let imageUrls = [...(formData.imageUrls || [])];
+      
+      if (formData.imageFiles && formData.imageFiles.length > 0) {
+        const { uploadTripImages } = await import('@/services/storageService');
+        const newImageUrls = await uploadTripImages(formData.imageFiles);
+        imageUrls = [...imageUrls, ...newImageUrls];
+      }
+      
+      // Ensure we have at least one image URL
+      if (imageUrls.length === 0) {
+        imageUrls = [getTripImage(formData.type)];
+      }
+      
+      // Prepare the trip data with the updated image URLs
+      const tripData: TripFormData = {
+        ...formData,
+        imageUrls,
+        imageUrl: imageUrls[0], // Keep imageUrl for backward compatibility
+        // Ensure all required fields are included
+        title: formData.title.trim(),
+        location: formData.location.trim(),
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        type: formData.type,
+        description: formData.description || ''
+      };
+      
+      await onSubmit(tripData);
     } catch (error) {
       console.error('Error updating trip:', error);
+      setFormErrors(prev => ({
+        ...prev,
+        submit: 'Failed to update trip. Please try again.'
+      }));
     } finally {
       setIsSubmitting(false);
     }
@@ -172,11 +350,11 @@ export default function EditTripForm({ initialData, onSubmit, onCancel, onDelete
                   style={{ paddingRight: '2.5rem' }}
                   disabled={isSubmitting}
                 >
-                  <option value="leisure">Leisure</option>
-                  <option value="business">Business</option>
-                  <option value="adventure">Adventure</option>
-                  <option value="hiking">Hiking</option>
-                  <option value="family">Family</option>
+                  {Object.entries(typeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
                 </select>
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                   <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -243,40 +421,90 @@ export default function EditTripForm({ initialData, onSubmit, onCancel, onDelete
             </div>
           </div>
 
-          {/* Image Upload (Optional) */}
+          {/* Image Upload */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Cover Image (Optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Trip Images (Max 10)</label>
+            
+            {/* Image Grid */}
+            {((formData.imageUrls && formData.imageUrls.length > 0) || (formData.imageFiles && formData.imageFiles.length > 0)) && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-4">
+                {/* Existing Images */}
+                {formData.imageUrls?.map((url, index) => (
+                  <div key={`existing-${index}`} className="relative group rounded-lg overflow-hidden aspect-square">
+                    <img 
+                      src={url} 
+                      alt={`Trip image ${index + 1}`} 
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(index, false)}
+                      className="absolute top-1 right-1 p-1 bg-black bg-opacity-50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      disabled={isSubmitting}
+                    >
+                      <FiX className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+                
+                {/* Newly Uploaded Images */}
+                {formData.imageFiles?.map((file, index) => (
+                  <div key={`new-${index}`} className="relative group rounded-lg overflow-hidden aspect-square">
+                    <img 
+                      src={URL.createObjectURL(file)} 
+                      alt={`New image ${index + 1}`} 
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveImage(index, true)}
+                      className="absolute top-1 right-1 p-1 bg-black bg-opacity-50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      disabled={isSubmitting}
+                    >
+                      <FiX className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Upload Button */}
             <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-xl">
               <div className="space-y-1 text-center">
                 <FiImage className="mx-auto h-12 w-12 text-gray-400" />
-                <div className="flex text-sm text-gray-600">
+                <div className="flex flex-col items-center text-sm text-gray-600">
                   <label className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none">
-                    <span>Upload a file</span>
+                    <span>Upload files</span>
                     <input 
                       type="file" 
                       className="sr-only" 
                       accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setFormData(prev => ({
-                              ...prev,
-                              imageUrl: reader.result as string
-                            }));
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      disabled={isSubmitting}
+                      multiple
+                      onChange={handleImageChange}
+                      disabled={isSubmitting || isImageUploading}
                     />
                   </label>
-                  <p className="pl-1">or drag and drop</p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {isImageUploading ? (
+                      <span className="flex items-center">
+                        <FiLoader className="animate-spin mr-2" /> Uploading...
+                      </span>
+                    ) : (
+                      'Drag and drop images here, or click to select (PNG, JPG, GIF up to 5MB each)'
+                    )}
+                  </p>
                 </div>
-                <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB</p>
+                {formErrors.imageUrl && (
+                  <p className="mt-2 text-sm text-red-600">{formErrors.imageUrl}</p>
+                )}
               </div>
             </div>
+            
+            {formData.imageUrls && formData.imageUrls.length > 0 && (
+              <p className="mt-2 text-xs text-gray-500">
+                Click on an image to remove it. At least one image is required.
+              </p>
+            )}
           </div>
 
           {/* Action Buttons */}

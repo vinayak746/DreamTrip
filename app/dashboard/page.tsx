@@ -747,6 +747,7 @@ export default function Dashboard() {
                   startDate={trip.startDate}
                   endDate={trip.endDate}
                   imageUrl={trip.imageUrl || getTripImage(trip.type as TripType)}
+                  imageUrls={trip.imageUrls || []}
                   type={trip.type as TripType}
                   description={trip.description}
                   saved={trip.saved || 0}

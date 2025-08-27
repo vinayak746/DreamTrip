@@ -1,10 +1,39 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FiX, FiCalendar, FiMapPin, FiImage, FiLoader, FiPlus } from 'react-icons/fi';
+import { FiX, FiCalendar, FiMapPin, FiImage, FiLoader, FiPlus, FiTag } from 'react-icons/fi';
 import { getTripImage } from '@/utils/tripImages';
+import { TripType } from '@/types/trip';
 
-type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
+const typeIcons = {
+  leisure: '🏖️',
+  business: '💼',
+  adventure: '🌋',
+  hiking: '🥾',
+  family: '👨‍👩‍👧‍👦',
+  roadtrip: '🚗',
+  beach: '🏝️',
+  mountain: '⛰️',
+  city: '🏙️',
+  cruise: '🚢',
+  solo: '🧳',
+  other: '✈️'
+};
+
+const typeLabels = {
+  leisure: 'Leisure',
+  business: 'Business',
+  adventure: 'Adventure',
+  hiking: 'Hiking',
+  family: 'Family',
+  roadtrip: 'Road Trip',
+  beach: 'Beach',
+  mountain: 'Mountain',
+  city: 'City',
+  cruise: 'Cruise',
+  solo: 'Solo',
+  other: 'Other'
+};
 
 interface TripFormData {
   title: string;
@@ -16,8 +45,10 @@ interface TripFormData {
   imageUrl: string;
 }
 
-interface ExtendedTripFormData extends TripFormData {
+interface ExtendedTripFormData extends Omit<TripFormData, 'imageFiles' | 'imageUrls'> {
   imageFile?: File;
+  imageFiles?: File[];
+  imageUrls: string[];
 }
 
 interface NewTripFormProps {
@@ -34,11 +65,16 @@ const DEFAULT_FORM_DATA: ExtendedTripFormData = {
   endDate: '',
   type: 'leisure',
   imageUrl: getTripImage('leisure'),
-  imageFile: undefined
+  imageFile: undefined,
+  imageUrls: [],
+  imageFiles: []
 };
 
-export default function NewTripForm({ onClose, onSubmit, isSubmitting = false }: NewTripFormProps) {
-  const [formData, setFormData] = useState<ExtendedTripFormData>(DEFAULT_FORM_DATA);
+export default function NewTripForm({ onClose, onSubmit, isSubmitting: isSubmittingProp = false }: NewTripFormProps) {
+  const [isSubmitting, setIsSubmitting] = useState(isSubmittingProp);
+  const [formData, setFormData] = useState<ExtendedTripFormData>({
+    ...DEFAULT_FORM_DATA,
+  });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof TripFormData, string>>>({});
   const [isImageUploading, setIsImageUploading] = useState(false);
 
@@ -52,57 +88,91 @@ export default function NewTripForm({ onClose, onSubmit, isSubmitting = false }:
     }
   }, [formData.type, formData.imageFile]);
 
+  const handleRemoveImage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      imageUrls: prev.imageUrls?.filter((_, i) => i !== index) || [],
+      imageFiles: prev.imageFiles?.filter((_, i) => i !== index) || []
+    }));
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev: ExtendedTripFormData) => ({ ...prev, [name]: value }));
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    // Validate file type and size
+    // Validate files
     const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
     const maxSizeMB = 5;
+    const maxFiles = 10;
     
-    if (!validTypes.includes(file.type)) {
+    // Check number of files
+    const totalFiles = (formData.imageFiles?.length || 0) + files.length;
+    if (totalFiles > maxFiles) {
       setFormErrors(prev => ({
         ...prev,
-        imageUrl: 'Please upload a valid image (JPEG, PNG, or WebP)'
-      }));
-      return;
-    }
-    
-    if (file.size > maxSizeMB * 1024 * 1024) {
-      setFormErrors(prev => ({
-        ...prev,
-        imageUrl: `Image size should be less than ${maxSizeMB}MB`
+        imageUrl: `You can upload a maximum of ${maxFiles} images`
       }));
       return;
     }
 
-    setIsImageUploading(true);
-    const reader = new FileReader();
+    // Validate each file
+    const validFiles: File[] = [];
+    for (const file of files) {
+      if (!validTypes.includes(file.type)) {
+        setFormErrors(prev => ({
+          ...prev,
+          imageUrl: 'Only JPG, PNG, and WebP images are allowed'
+        }));
+        return;
+      }
+      
+      if (file.size > maxSizeMB * 1024 * 1024) {
+        setFormErrors(prev => ({
+          ...prev,
+          imageUrl: `Image size should be less than ${maxSizeMB}MB`
+        }));
+        return;
+      }
+      validFiles.push(file);
+    }
+
+    // Add files to state for preview
+    setFormData(prev => ({
+      ...prev,
+      imageFiles: [...(prev.imageFiles || []), ...validFiles]
+    }));
     
-    reader.onloadend = () => {
-      setFormData(prev => ({
-        ...prev,
-        imageUrl: reader.result as string,
-        imageFile: file
-      }));
-      setFormErrors(prev => ({ ...prev, imageUrl: '' }));
-      setIsImageUploading(false);
-    };
+    setFormErrors(prev => ({ ...prev, imageUrl: '' }));
     
-    reader.onerror = () => {
-      setFormErrors(prev => ({
-        ...prev,
-        imageUrl: 'Error reading image file'
-      }));
-      setIsImageUploading(false);
-    };
-    
-    reader.readAsDataURL(file);
+    // Upload files if we have valid ones
+    if (validFiles.length > 0) {
+      setIsImageUploading(true);
+      
+      try {
+        const { uploadTripImages } = await import('@/services/storageService');
+        const uploadedUrls = await uploadTripImages(validFiles);
+        
+        // Update with the actual Cloudinary URLs
+        setFormData(prev => ({
+          ...prev,
+          imageUrls: [...(prev.imageUrls || []), ...uploadedUrls]
+        }));
+        
+      } catch (error) {
+        console.error('Error uploading images:', error);
+        setFormErrors(prev => ({
+          ...prev,
+          imageUrl: error instanceof Error ? error.message : 'Failed to upload images. Please try again.'
+        }));
+      } finally {
+        setIsImageUploading(false);
+      }
+    }
   };
 
   const validateForm = (): boolean => {
@@ -133,18 +203,53 @@ export default function NewTripForm({ onClose, onSubmit, isSubmitting = false }:
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
     
     try {
-      await onSubmit(formData);
-      // Reset form on successful submission
-      setFormData(DEFAULT_FORM_DATA);
-      setFormErrors({});
+      setIsSubmitting(true);
+      
+      // Upload any new images
+      let imageUrls = [...(formData.imageUrls || [])];
+      
+      if (formData.imageFiles && formData.imageFiles.length > 0) {
+        const { uploadTripImages } = await import('@/services/storageService');
+        const newImageUrls = await uploadTripImages(formData.imageFiles);
+        imageUrls = [...imageUrls, ...newImageUrls];
+      }
+      
+      // Ensure we have at least one image URL
+      if (imageUrls.length === 0) {
+        imageUrls = [getTripImage(formData.type)];
+      }
+      
+      // Create a clean trip data object without File objects
+      const tripData = {
+        title: formData.title.trim(),
+        description: formData.description || '',
+        location: formData.location.trim(),
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+        type: formData.type,
+        imageUrl: imageUrls[0], // Keep for backward compatibility
+        imageUrls: imageUrls,
+        // Don't include imageFiles in the final data
+      };
+      
+      console.log('Submitting trip with data:', {
+        ...tripData,
+        imageUrls: imageUrls.map(url => url.substring(0, 30) + '...') // Log a preview of URLs
+      });
+      
+      await onSubmit(tripData);
+      onClose();
     } catch (error) {
       console.error('Error submitting form:', error);
-      // Error handling is done in the parent component
+      setFormErrors(prev => ({
+        ...prev,
+        submit: error instanceof Error ? error.message : 'Failed to create trip. Please try again.'
+      }));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -195,21 +300,68 @@ export default function NewTripForm({ onClose, onSubmit, isSubmitting = false }:
               )}
             </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1.5">
-                Description
+            {/* Image Upload Section */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Trip Images
               </label>
-              <div className="relative">
-                <textarea
-                  id="description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleChange}
-                  rows={3}
-                  className="w-full px-4 py-3 bg-white border-2 border-gray-100 hover:border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400 shadow-sm resize-none"
-                  placeholder="Tell us about your trip..."
-                />
+              <div className="mt-1 flex items-start">
+                <div className="flex-shrink-0 h-24 w-24 rounded-lg overflow-hidden bg-gray-100 border-2 border-gray-100">
+                  {isImageUploading ? (
+                    <div className="h-full w-full flex items-center justify-center bg-gray-50">
+                      <FiLoader className="animate-spin h-6 w-6 text-gray-500" />
+                    </div>
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center bg-gray-50">
+                      <FiImage className="h-6 w-6 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                <div className="ml-4 flex flex-col space-y-2">
+                  <label className="inline-flex items-center px-4 py-2 border border-gray-100 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 cursor-pointer">
+                    Upload Images
+                    <input 
+                      type="file" 
+                      className="sr-only" 
+                      onChange={handleImageChange} 
+                      accept="image/jpeg,image/png,image/webp"
+                      multiple
+                      disabled={isImageUploading || isSubmitting}
+                    />
+                  </label>
+                  {formData.imageUrls?.length > 0 && (
+                    <p className="text-xs text-gray-500">
+                      {formData.imageUrls.length} image{formData.imageUrls.length !== 1 ? 's' : ''} selected
+                    </p>
+                  )}
+                </div>
               </div>
+              {formErrors.imageUrl && (
+                <p className="mt-1 text-sm text-red-600">
+                  {formErrors.imageUrl}
+                </p>
+              )}
+              {formData.imageUrls?.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {formData.imageUrls.map((url, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={url}
+                        alt={`Trip image ${index + 1}`}
+                        className="w-full h-24 object-cover rounded-lg"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(index)}
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        aria-label="Remove image"
+                      >
+                        <FiX size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>
@@ -311,80 +463,30 @@ export default function NewTripForm({ onClose, onSubmit, isSubmitting = false }:
               <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">
                 Trip Type
               </label>
-              <select
-                id="type"
-                name="type"
-                value={formData.type}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-white border-2 border-gray-100 hover:border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 text-gray-900"
-                disabled={isSubmitting}
-              >
-                <option value="leisure">🏖️ Leisure</option>
-                <option value="business">💼 Business</option>
-                <option value="adventure">🌋 Adventure</option>
-                <option value="hiking">🥾 Hiking</option>
-                <option value="family">👨‍👩‍👧‍👦 Family</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Trip Image
-              </label>
-              <div className="mt-1 flex items-start">
-                <div className="flex-shrink-0 h-24 w-24 rounded-lg overflow-hidden bg-gray-100 border-2 border-gray-100">
-                  {isImageUploading ? (
-                    <div className="h-full w-full flex items-center justify-center bg-gray-50">
-                      <FiLoader className="animate-spin h-6 w-6 text-gray-500" />
-                    </div>
-                  ) : (
-                    <img
-                      src={formData.imageUrl || getTripImage(formData.type)}
-                      alt="Trip preview"
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = getTripImage(formData.type);
-                      }}
-                    />
-                  )}
-                </div>
-                <div className="ml-4 flex flex-col space-y-2">
-                  <label className="inline-flex items-center px-4 py-2 border border-gray-100 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 cursor-pointer">
-                    {formData.imageFile ? 'Change Image' : 'Upload Image'}
-                    <input 
-                      type="file" 
-                      className="sr-only" 
-                      onChange={handleImageChange} 
-                      accept="image/jpeg,image/png,image/webp"
-                      disabled={isImageUploading || isSubmitting}
-                    />
-                  </label>
-                  {formData.imageFile && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFormData(prev => ({
-                          ...prev,
-                          imageFile: undefined,
-                          imageUrl: getTripImage(prev.type)
-                        }));
-                        setFormErrors(prev => ({ ...prev, imageUrl: '' }));
-                      }}
-                      className="inline-flex items-center px-4 py-2 border border-red-100 rounded-md shadow-sm text-sm font-medium text-red-700 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                      disabled={isSubmitting}
-                    >
-                      Remove
-                    </button>
-                  )}
+              <div className="relative group">
+                <FiTag className="absolute left-4 top-3.5 text-gray-400 group-focus-within:text-indigo-500 transition-colors pointer-events-none" size={18} />
+                <select
+                  id="type"
+                  name="type"
+                  value={formData.type}
+                  onChange={handleChange}
+                  className="w-full pl-12 pr-4 py-3 bg-white border-2 border-gray-100 hover:border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all duration-200 text-gray-900 appearance-none"
+                  disabled={isSubmitting}
+                >
+                  {Object.entries(typeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {typeIcons[value as keyof typeof typeIcons]} {label}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </div>
               </div>
-              {formErrors.imageUrl && (
-                <p className="mt-1 text-sm text-red-600">
-                  {formErrors.imageUrl}
-                </p>
-              )}
             </div>
+
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
               <div>

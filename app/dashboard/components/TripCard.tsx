@@ -6,10 +6,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { doc, updateDoc, arrayUnion, arrayRemove, getDoc } from 'firebase/firestore';
 import { getFirestoreDb } from '@/firebase/config';
 import TripPreviewModal from './TripPreviewModal';
+import { TripType } from '@/types/trip';
 
-type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
-
-// Define a type for the typeIcons and typeLabels objects
+// Define types for the typeIcons and typeLabels objects
 type TripTypeIcons = {
   [key in TripType]: React.ReactNode;
 };
@@ -25,6 +24,7 @@ interface TripCardProps {
   startDate: string;
   endDate: string;
   imageUrl: string;
+  imageUrls?: string[]; // Add support for multiple images
   type: TripType;
   description?: string;
   saved?: number;
@@ -40,7 +40,14 @@ const typeIcons: TripTypeIcons = {
   business: '💼',
   adventure: '🌋',
   hiking: '🥾',
-  family: '👨‍👩‍👧‍👦'
+  family: '👨‍👩‍👧‍👦',
+  roadtrip: '🚗',
+  beach: '🏝️',
+  mountain: '⛰️',
+  city: '🏙️',
+  cruise: '🚢',
+  solo: '🧳',
+  other: '✈️'
 };
 
 const typeLabels: TripTypeLabels = {
@@ -48,7 +55,14 @@ const typeLabels: TripTypeLabels = {
   business: 'Business',
   adventure: 'Adventure',
   hiking: 'Hiking',
-  family: 'Family'
+  family: 'Family',
+  roadtrip: 'Road Trip',
+  beach: 'Beach',
+  mountain: 'Mountain',
+  city: 'City',
+  cruise: 'Cruise',
+  solo: 'Solo',
+  other: 'Other'
 };
 
 const typeColors = {
@@ -56,7 +70,14 @@ const typeColors = {
   business: 'bg-blue-50 text-blue-700 border border-blue-100',
   adventure: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
   hiking: 'bg-red-50 text-red-700 border border-red-100',
-  family: 'bg-purple-50 text-purple-700 border border-purple-100'
+  family: 'bg-purple-50 text-purple-700 border border-purple-100',
+  roadtrip: 'bg-indigo-50 text-indigo-700 border border-indigo-100',
+  beach: 'bg-cyan-50 text-cyan-700 border border-cyan-100',
+  mountain: 'bg-gray-50 text-gray-700 border border-gray-100',
+  city: 'bg-pink-50 text-pink-700 border border-pink-100',
+  cruise: 'bg-sky-50 text-sky-700 border border-sky-100',
+  solo: 'bg-lime-50 text-lime-700 border border-lime-100',
+  other: 'bg-slate-50 text-slate-700 border border-slate-100'
 };
 
 const formatDate = (dateString: string) => {
@@ -77,12 +98,29 @@ export default function TripCard({
   isFavorite: initialIsFavorite = false,
   onFavoriteToggle,
   imageUrl,
+  imageUrls: propImageUrls = [],
   type,
   saved = 0,
   userId,
   onViewDetails,
   onEdit,
 }: TripCardProps) {
+  // Combine legacy imageUrl with imageUrls array, handle undefined cases
+  const allImageUrls = React.useMemo(() => {
+    // If we have imageUrls array, use it (filter out any falsy values)
+    if (propImageUrls && propImageUrls.length > 0) {
+      return propImageUrls.filter(Boolean);
+    }
+    // Fall back to imageUrl if no imageUrls
+    if (imageUrl) {
+      return [imageUrl];
+    }
+    // Default to a trip image if no URLs are provided
+    return [getTripImage(type)];
+  }, [imageUrl, propImageUrls, type]);
+      
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       day: 'numeric',
@@ -160,21 +198,76 @@ export default function TripCard({
       <div 
         className="h-full flex flex-col bg-white/80 backdrop-blur-sm rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.02)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.04)] transition-all duration-300 border border-gray-100/80 hover:border-gray-200/80"
       >
-        {/* Image with overlay */}
+        {/* Image carousel with overlay */}
         <div 
           className="relative h-48 w-full cursor-pointer overflow-hidden"
           onClick={handleCardClick}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
         >
           <div className="relative w-full h-full">
-            <Image
-              src={displayImage}
-              alt={title}
-              fill
-              className="object-cover transition-transform duration-700 group-hover:scale-105"
-              onError={handleImageError}
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              priority={false}
-            />
+            {allImageUrls.length > 0 ? (
+              <>
+                <Image
+                  src={allImageUrls[currentImageIndex]}
+                  alt={`${title} - Image ${currentImageIndex + 1}`}
+                  fill
+                  className="object-cover transition-transform duration-700 group-hover:scale-105"
+                  onError={handleImageError}
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  priority={false}
+                />
+                
+                {/* Navigation arrows */}
+                {allImageUrls.length > 1 && (
+                  <>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(prev => (prev === 0 ? allImageUrls.length - 1 : prev - 1));
+                      }}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors z-10"
+                      aria-label="Previous image"
+                    >
+                      &larr;
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentImageIndex(prev => (prev === allImageUrls.length - 1 ? 0 : prev + 1));
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/40 flex items-center justify-center text-white hover:bg-black/60 transition-colors z-10"
+                      aria-label="Next image"
+                    >
+                      &rarr;
+                    </button>
+                    
+                    {/* Dots indicator */}
+                    <div className="absolute bottom-3 left-0 right-0 flex justify-center space-x-2 z-10">
+                      {allImageUrls.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentImageIndex(index);
+                          }}
+                          className={`w-2 h-2 rounded-full transition-all ${
+                            index === currentImageIndex 
+                              ? 'bg-white w-4' 
+                              : 'bg-white/50 hover:bg-white/75'
+                          }`}
+                          aria-label={`Go to image ${index + 1}`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                <span className="text-gray-400">No images</span>
+              </div>
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
           </div>
           

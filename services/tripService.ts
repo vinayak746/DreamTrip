@@ -151,21 +151,33 @@ class TripService {
       
       // Create timestamps
       const now = new Date();
-      const tripWithTimestamps = {
-        ...tripData,
-        userId, // Ensure userId is set
+      
+      // Create a clean trip data object with only the fields we want to store
+      const tripToStore = {
+        title: tripData.title,
+        description: tripData.description || '',
+        location: tripData.location,
+        startDate: tripData.startDate,
+        endDate: tripData.endDate,
+        type: tripData.type || 'leisure',
+        imageUrl: tripData.imageUrl || '',
+        imageUrls: Array.isArray(tripData.imageUrls) 
+          ? tripData.imageUrls.filter(url => typeof url === 'string')
+          : [],
+        isFavorite: false,
+        saved: 0,
+        userId,
+        days: [],
         createdAt: now.toISOString(),
         updatedAt: now.toISOString()
       };
       
-      await setDoc(newTripRef, tripWithTimestamps);
+      await setDoc(newTripRef, tripToStore);
       
       // Return the created trip with the correct types
       return {
         id: newTripRef.id,
-        ...tripData,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString()
+        ...tripToStore
       };
     } catch (error) {
       console.error('Error creating trip:', error);
