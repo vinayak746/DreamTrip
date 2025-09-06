@@ -31,6 +31,16 @@ const mapDocumentToTrip = (doc: QueryDocumentSnapshot | DocumentSnapshot): Trip 
   const data = doc.data();
   if (!data) throw new Error('Document data is undefined');
   
+  // Handle both array and single string for imageUrl for backward compatibility
+  const imageUrls = Array.isArray(data.imageUrls) 
+    ? data.imageUrls 
+    : data.imageUrl 
+      ? [data.imageUrl] 
+      : [];
+  
+  // Ensure imageUrl is always set (use first image from imageUrls if available)
+  const imageUrl = imageUrls[0] || '';
+  
   return {
     id: doc.id,
     title: data.title,
@@ -39,13 +49,19 @@ const mapDocumentToTrip = (doc: QueryDocumentSnapshot | DocumentSnapshot): Trip 
     startDate: data.startDate,
     endDate: data.endDate,
     type: data.type || 'leisure', // Default to 'leisure' if not specified
-    imageUrl: data.imageUrl || '',
+    imageUrl, // For backward compatibility
+    imageUrls,
     isFavorite: data.isFavorite || false,
+    isPublic: data.isPublic || false,
     saved: data.saved || 0,
     userId: data.userId,
     createdAt: data.createdAt?.toDate?.() || new Date(),
     updatedAt: data.updatedAt?.toDate?.() || new Date(),
-    days: data.days || []
+    days: data.days || [],
+    tags: Array.isArray(data.tags) ? data.tags : [],
+    coverImageIndex: typeof data.coverImageIndex === 'number' ? data.coverImageIndex : 0,
+    budget: data.budget || undefined,
+    collaborators: Array.isArray(data.collaborators) ? data.collaborators : []
   };
 };
 
@@ -154,20 +170,40 @@ class TripService {
       
       // Create a clean trip data object with only the fields we want to store
       const tripToStore = {
+        // Required fields
         title: tripData.title,
         description: tripData.description || '',
         location: tripData.location,
         startDate: tripData.startDate,
         endDate: tripData.endDate,
         type: tripData.type || 'leisure',
-        imageUrl: tripData.imageUrl || '',
+        
+        // Image handling
+        imageUrl: tripData.imageUrl || '', // For backward compatibility
         imageUrls: Array.isArray(tripData.imageUrls) 
-          ? tripData.imageUrls.filter(url => typeof url === 'string')
+          ? tripData.imageUrls.filter((url): url is string => typeof url === 'string')
           : [],
-        isFavorite: false,
-        saved: 0,
+        coverImageIndex: typeof tripData.coverImageIndex === 'number' 
+          ? tripData.coverImageIndex 
+          : 0,
+        
+        // Trip organization
+        days: Array.isArray(tripData.days) ? tripData.days : [],
+        tags: Array.isArray(tripData.tags) ? tripData.tags : [],
+        isPublic: Boolean(tripData.isPublic),
+        
+        // User and stats
         userId,
-        days: [],
+        isFavorite: Boolean(tripData.isFavorite),
+        saved: typeof tripData.saved === 'number' ? tripData.saved : 0,
+        
+        // Optional fields
+        budget: tripData.budget || undefined,
+        collaborators: Array.isArray(tripData.collaborators) 
+          ? tripData.collaborators 
+          : [],
+        
+        // Timestamps
         createdAt: now.toISOString(),
         updatedAt: now.toISOString()
       };
@@ -212,10 +248,69 @@ class TripService {
       // Don't allow updating these fields
       const { id, userId: _, createdAt, ...safeUpdates } = updates as any;
       
-      await updateDoc(tripRef, {
-        ...safeUpdates,
-        updatedAt: serverTimestamp()
+      // Clean and prepare the updates
+      const cleanedUpdates: Record<string, any> = {};
+      
+      // Handle image updates
+      if ('imageUrls' in safeUpdates) {
+        cleanedUpdates.imageUrls = Array.isArray(safeUpdates.imageUrls)
+          ? safeUpdates.imageUrls.filter((url: any): url is string => typeof url === 'string')
+          : [];
+          
+        // Update the main imageUrl if it's not explicitly set and we have imageUrls
+        if (!('imageUrl' in safeUpdates) && cleanedUpdates.imageUrls.length > 0) {
+          cleanedUpdates.imageUrl = cleanedUpdates.imageUrls[0];
+        }
+      }
+      
+      // Handle cover image index
+      if ('coverImageIndex' in safeUpdates) {
+        const index = Number(safeUpdates.coverImageIndex) || 0;
+        cleanedUpdates.coverImageIndex = Math.max(0, index);
+      }
+      
+      // Handle arrays to ensure they're properly typed
+      if ('tags' in safeUpdates) {
+        cleanedUpdates.tags = Array.isArray(safeUpdates.tags) ? safeUpdates.tags : [];
+      }
+      
+      if ('days' in safeUpdates) {
+        cleanedUpdates.days = Array.isArray(safeUpdates.days) ? safeUpdates.days : [];
+      }
+      
+      if ('collaborators' in safeUpdates) {
+        cleanedUpdates.collaborators = Array.isArray(safeUpdates.collaborators) 
+          ? safeUpdates.collaborators 
+          : [];
+      }
+      
+      // Handle booleans
+      if ('isPublic' in safeUpdates) {
+        cleanedUpdates.isPublic = Boolean(safeUpdates.isPublic);
+      }
+      
+      if ('isFavorite' in safeUpdates) {
+        cleanedUpdates.isFavorite = Boolean(safeUpdates.isFavorite);
+      }
+      
+      // Handle numbers
+      if ('saved' in safeUpdates) {
+        const saved = Number(safeUpdates.saved);
+        cleanedUpdates.saved = isNaN(saved) ? 0 : Math.max(0, saved);
+      }
+      
+      // Add any other fields that don't need special handling
+      Object.entries(safeUpdates).forEach(([key, value]) => {
+        if (!(key in cleanedUpdates) && value !== undefined) {
+          cleanedUpdates[key] = value;
+        }
       });
+      
+      // Add updatedAt timestamp
+      cleanedUpdates.updatedAt = serverTimestamp();
+      
+      // Perform the update
+      await updateDoc(tripRef, cleanedUpdates);
     } catch (error) {
       console.error('Error updating trip:', error);
       throw new Error('Failed to update trip. Please try again.');
@@ -251,7 +346,11 @@ class TripService {
    */
   async toggleFavorite(userId: string, tripId: string, isFavorite: boolean): Promise<void> {
     try {
-      await this.updateTrip(userId, tripId, { isFavorite });
+      const tripRef = doc(db, 'users', userId, 'trips', tripId);
+      await updateDoc(tripRef, {
+        isFavorite: Boolean(isFavorite),
+        updatedAt: serverTimestamp()
+      });
     } catch (error) {
       console.error('Error toggling favorite:', error);
       throw new Error('Failed to update favorite status. Please try again.');

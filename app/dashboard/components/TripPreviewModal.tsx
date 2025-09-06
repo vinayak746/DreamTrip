@@ -6,7 +6,13 @@ import { format, formatDistance } from 'date-fns';
 import Image from 'next/image';
 import { TripType } from '@/types/trip';
 
-interface Trip {
+export interface TripDay {
+  day: number;
+  location: string;
+  activities: string[];
+}
+
+export interface Trip {
   id: string;
   title: string;
   description: string;
@@ -17,11 +23,7 @@ interface Trip {
   imageUrl: string;
   saved?: number;
   userId: string;
-  days?: Array<{
-    day: number;
-    location: string;
-    activities: string[];
-  }>;
+  days?: TripDay[];
 }
 
 interface TripPreviewModalProps {
@@ -34,21 +36,35 @@ interface TripPreviewModalProps {
   onToggleFavorite: (e: React.MouseEvent) => void;
 }
 
-const typeIcons = {
+const typeIcons: Record<TripType, string> = {
   leisure: '🏖️',
   business: '💼',
   adventure: '🌋',
   hiking: '🥾',
-  family: '👨‍👩‍👧‍👦'
+  family: '👨‍👩‍👧‍👦',
+  roadtrip: '🚗',
+  beach: '🏝️',
+  mountain: '⛰️',
+  city: '🏙️',
+  cruise: '🚢',
+  solo: '🧳',
+  other: '✈️'
 };
 
-const getTypeLabel = (type: string) => {
-  const labels: Record<string, string> = {
+const getTypeLabel = (type: TripType): string => {
+  const labels: Record<TripType, string> = {
     leisure: 'Leisure',
     business: 'Business',
     adventure: 'Adventure',
     hiking: 'Hiking',
-    family: 'Family'
+    family: 'Family',
+    roadtrip: 'Road Trip',
+    beach: 'Beach',
+    mountain: 'Mountain',
+    city: 'City',
+    cruise: 'Cruise',
+    solo: 'Solo',
+    other: 'Other'
   };
   return labels[type] || type.charAt(0).toUpperCase() + type.slice(1);
 };
@@ -69,13 +85,14 @@ export default function TripPreviewModal({
     return () => setIsMounted(false);
   }, []);
 
-  if (!isOpen || !isMounted) return null;
 
-  const startDate = new Date(trip.startDate);
+    const startDate = new Date(trip.startDate);
   const endDate = new Date(trip.endDate);
   const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
   const formattedDateRange = `${format(startDate, 'MMM d')} - ${format(endDate, 'd, yyyy')}`;
   const formattedYear = format(startDate, 'yyyy');
+  
+  if (!isOpen || !isMounted) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">

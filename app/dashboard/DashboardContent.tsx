@@ -5,27 +5,46 @@ import { useRouter } from 'next/navigation';
 import { FiSearch, FiPlus, FiMapPin, FiHeart, FiStar } from 'react-icons/fi';
 import { useAuth } from '@/contexts/AuthContext';
 import TripCard from './components/TripCard';
-import NewTripModal from './components/NewTripModal';
+import { NewTripFormRefactored } from './components/NewTripFormRefactored';
 import { doc, updateDoc, arrayUnion, arrayRemove, getDoc } from 'firebase/firestore';
 import { getFirestoreDb } from '@/firebase/config';
 
-type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family';
-type FilterType = 'all' | TripType;
+import { Trip as TripType, TripDay, Activity, TripFormData } from '@/types/trip';
+
+type FilterType = 'all' | TripType['type'];
 
 interface Trip {
   id: string;
   title: string;
+  description: string;
   location: string;
   startDate: string;
   endDate: string;
+  type: TripType['type'];
   imageUrl: string;
-  type: TripType;
-  days?: Array<{
-    day: number;
-    location: string;
-    activities: string[];
-  }>;
-  saved?: number;
+  imageUrls: string[];
+  coverImageIndex: number;
+  isPublic: boolean;
+  tags: string[];
+  days: TripDay[];
+  saved: number;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  budget?: {
+    total: number;
+    currency: string;
+    expenses: Array<{
+      id: string;
+      category: string;
+      amount: number;
+      description: string;
+      date: string;
+      receiptUrl?: string;
+    }>;
+  };
+  collaborators?: string[];
+  isFavorite?: boolean;
 }
 
 export default function DashboardContent() {
@@ -91,45 +110,148 @@ export default function DashboardContent() {
     {
       id: '1',
       title: '10-Day Japan Adventure',
+      description: 'Exploring the best of Japan',
       location: 'Tokyo, Kyoto, Osaka',
       startDate: '2024-11-15',
       endDate: '2024-11-25',
       type: 'adventure',
       imageUrl: 'https://images.unsplash.com/photo-1492571350019-22de08371fd3?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      saved: 124,
+      imageUrls: ['https://images.unsplash.com/photo-1492571350019-22de08371fd3?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'],
+      coverImageIndex: 0,
+      isPublic: true,
+      tags: ['adventure', 'japan', 'culture'],
       days: [
-        { day: 1, location: 'Tokyo', activities: ['Shibuya Crossing', 'Ramen tasting'] },
-        { day: 2, location: 'Tokyo', activities: ['Ghibli Museum', 'Ueno Park'] },
-        { day: 3, location: 'Kyoto', activities: ['Fushimi Inari Shrine'] },
-      ]
+        { 
+          id: '1',
+          day: 1,
+          date: '2024-11-15',
+          location: 'Tokyo', 
+          activities: [
+            { id: '1', name: 'Shibuya Crossing', location: 'Shibuya', time: '10:00' },
+            { id: '2', name: 'Ramen tasting', location: 'Shinjuku', time: '12:30' }
+          ] 
+        },
+        { 
+          id: '2',
+          day: 2,
+          date: '2024-11-16',
+          location: 'Tokyo', 
+          activities: [
+            { id: '3', name: 'Ghibli Museum', location: 'Mitaka', time: '09:00' },
+            { id: '4', name: 'Ueno Park', location: 'Ueno', time: '14:00' }
+          ] 
+        },
+        { 
+          id: '3',
+          day: 3,
+          date: '2024-11-17',
+          location: 'Kyoto', 
+          activities: [
+            { id: '5', name: 'Fushimi Inari Shrine', location: 'Kyoto', time: '08:00' }
+          ]
+        },
+      ],
+      saved: 124,
+      userId: 'mock-user-1',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      budget: {
+        total: 0,
+        currency: 'USD',
+        expenses: []
+      },
+      collaborators: []
     },
     {
       id: '2',
       title: 'Parisian Getaway',
+      description: 'Romantic trip to the city of love',
       location: 'Paris, France',
       startDate: '2024-10-05',
       endDate: '2024-10-10',
       type: 'leisure',
       imageUrl: 'https://images.unsplash.com/photo-1431274172761-fca41d930114?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      saved: 210,
+      imageUrls: ['https://images.unsplash.com/photo-1431274172761-fca41d930114?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'],
+      coverImageIndex: 0,
+      isPublic: true,
+      tags: ['romantic', 'europe', 'city'],
       days: [
-        { day: 1, location: 'Paris', activities: ['Eiffel Tower', 'Seine River Cruise'] },
-        { day: 2, location: 'Paris', activities: ['Louvre Museum', 'Notre-Dame'] },
-      ]
+        { 
+          id: '4',
+          day: 1,
+          date: '2024-10-05',
+          location: 'Paris', 
+          activities: [
+            { id: '6', name: 'Eiffel Tower', location: 'Champ de Mars', time: '10:00' },
+            { id: '7', name: 'Seine River Cruise', location: 'Port de la Bourdonnais', time: '19:00' }
+          ] 
+        },
+        { 
+          id: '5',
+          day: 2,
+          date: '2024-10-06',
+          location: 'Paris', 
+          activities: [
+            { id: '8', name: 'Louvre Museum', location: 'Rue de Rivoli', time: '09:30' },
+            { id: '9', name: 'Notre-Dame', location: 'Île de la Cité', time: '14:00' }
+          ] 
+        },
+      ],
+      saved: 210,
+      userId: 'mock-user-1',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      budget: {
+        total: 0,
+        currency: 'USD',
+        expenses: []
+      },
+      collaborators: []
     },
     {
       id: '3',
       title: 'Mountain Hiking',
-      location: 'Swiss Alps, Switzerland',
-      startDate: '2024-09-10',
-      endDate: '2024-09-18',
+      description: 'Challenging hikes in the Swiss Alps',
+      location: 'Swiss Alps',
+      startDate: '2024-09-01',
+      endDate: '2024-09-08',
       type: 'hiking',
-      imageUrl: 'https://images.unsplash.com/photo-1483728642387-6c3bdd6de93a?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
-      saved: 87,
+      imageUrl: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+      imageUrls: ['https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'],
+      coverImageIndex: 0,
+      isPublic: true,
+      tags: ['hiking', 'mountains', 'adventure'],
       days: [
-        { day: 1, location: 'Zermatt', activities: ['Arrival', 'Acclimatization'] },
-        { day: 2, location: 'Matterhorn', activities: ['Hike to Hörnli Hut'] },
-      ]
+        { 
+          id: '6',
+          day: 1,
+          date: '2024-09-01',
+          location: 'Zermatt', 
+          activities: [
+            { id: '10', name: 'Arrival', location: 'Zermatt', time: '14:00' },
+            { id: '11', name: 'Acclimatization', location: 'Zermatt', time: '16:00' }
+          ] 
+        },
+        { 
+          id: '7',
+          day: 2,
+          date: '2024-09-02',
+          location: 'Matterhorn', 
+          activities: [
+            { id: '12', name: 'Hike to Hörnli Hut', location: 'Matterhorn', time: '06:00' }
+          ] 
+        },
+      ],
+      saved: 89,
+      userId: 'mock-user-1',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      budget: {
+        total: 0,
+        currency: 'USD',
+        expenses: []
+      },
+      collaborators: []
     }
   ]);
 
@@ -137,24 +259,57 @@ export default function DashboardContent() {
     router.push(`/dashboard/trips/${tripId}`);
   };
 
-  const handleCreateNewTrip = (tripData: {
-    title: string;
-    location: string;
-    startDate: string;
-    endDate: string;
-    type: TripType;
-  }) => {
+  const handleCreateNewTrip = async (tripData: Omit<TripFormData, 'isFavorite'> & { isFavorite?: boolean }) => {
+    // Ensure all required fields are present
+    const days = tripData.days?.map((day: TripDay) => ({
+      ...day,
+      activities: day.activities?.map((activity: Activity) => ({
+        ...activity,
+        id: activity.id || Date.now().toString(),
+        isBooked: activity.isBooked || false
+      })) || []
+    })) || [];
+
+    // In a real app, this would save to Firestore
     // In a real app, this would save to Firestore
     const newTrip: Trip = {
       id: Date.now().toString(),
-      ...tripData,
-      imageUrl: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+      title: tripData.title,
+      location: tripData.location,
+      startDate: tripData.startDate,
+      endDate: tripData.endDate,
+      type: tripData.type,
+      imageUrl: tripData.imageUrl || 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80',
+      description: tripData.description || '',
+      saved: 0,
+      days: tripData.days.map(day => ({
+        ...day,
+        activities: day.activities.map(activity => ({
+          ...activity,
+          id: activity.id || Date.now().toString(),
+          isBooked: activity.isBooked || false
+        }))
+      })) || [],
+      userId: user?.uid || '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isPublic: tripData.isPublic || false,
+      tags: tripData.tags || [],
+      imageUrls: tripData.imageUrls || [],
+      coverImageIndex: tripData.coverImageIndex || 0,
+      budget: tripData.budget || {
+        total: 0,
+        currency: 'USD',
+        expenses: []
+      },
+      collaborators: tripData.collaborators || []
     };
+    
     setTrips([newTrip, ...trips]);
   };
 
   // Filter trips based on search query and active filter
-  const filteredTrips = trips.filter(trip => {
+  const filteredTrips = trips.filter((trip): trip is Trip => trip !== undefined).filter(trip => {
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = searchQuery === '' || 
                          trip.title.toLowerCase().includes(searchLower) ||
@@ -164,9 +319,9 @@ export default function DashboardContent() {
   });
 
   // Get favorite trips
-  const favoriteTrips = filteredTrips.filter(trip => favorites.has(trip.id));
+  const favoriteTrips = filteredTrips.filter(trip => trip && favorites.has(trip.id));
   
-  const tripTypes: TripType[] = ['leisure', 'business', 'adventure', 'hiking', 'family'];
+  const tripTypes: Array<Trip['type']> = ['leisure', 'business', 'adventure', 'hiking', 'family', 'roadtrip', 'beach', 'mountain', 'city', 'cruise', 'solo', 'other'];
 
   if (!user) {
     return null;
@@ -174,12 +329,17 @@ export default function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
-      {/* New Trip Modal */}
-      <NewTripModal
-        isOpen={showNewTripModal}
-        onClose={() => setShowNewTripModal(false)}
-        onSubmit={handleCreateNewTrip}
-      />
+      {/* New Trip Form Modal */}
+      {showNewTripModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <NewTripFormRefactored
+              onClose={() => setShowNewTripModal(false)}
+              onSubmit={handleCreateNewTrip}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Header with Search */}
       <div className="bg-gradient-to-r from-blue-500 to-indigo-600 pb-20 shadow-sm">
@@ -219,37 +379,56 @@ export default function DashboardContent() {
                         ? 'bg-blue-600 text-white' 
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
-                  >
+                  > 
                     All Trips
                   </button>
-                  {tripTypes.map((tripType) => (
-                    <button
-                      key={tripType}
-                      onClick={() => setActiveFilter(tripType)}
-                      className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex items-center ${
-                        activeFilter === tripType
-                          ? `${{
-                              leisure: 'bg-amber-100 text-amber-800',
-                              business: 'bg-blue-100 text-blue-800',
-                              adventure: 'bg-emerald-100 text-emerald-800',
-                              hiking: 'bg-red-100 text-red-800',
-                              family: 'bg-purple-100 text-purple-800'
-                            }[tripType]}` 
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      <span className="mr-1.5">
-                        {{
-                          leisure: '',
-                          business: '',
-                          adventure: '',
-                          hiking: '',
-                          family: ''
-                        }[tripType]}
-                      </span>
-                      {tripType.charAt(0).toUpperCase() + tripType.slice(1)}
-                    </button>
-                  ))}
+                  {tripTypes.map((tripType) => {
+                    const typeStyles = {
+                      leisure: 'bg-amber-100 text-amber-800',
+                      business: 'bg-blue-100 text-blue-800',
+                      adventure: 'bg-emerald-100 text-emerald-800',
+                      hiking: 'bg-red-100 text-red-800',
+                      family: 'bg-purple-100 text-purple-800',
+                      roadtrip: 'bg-orange-100 text-orange-800',
+                      beach: 'bg-cyan-100 text-cyan-800',
+                      mountain: 'bg-stone-100 text-stone-800',
+                      city: 'bg-gray-100 text-gray-800',
+                      cruise: 'bg-indigo-100 text-indigo-800',
+                      solo: 'bg-pink-100 text-pink-800',
+                      other: 'bg-gray-100 text-gray-800'
+                    };
+                    const typeIcons = {
+                      leisure: '🏖️',
+                      business: '💼',
+                      adventure: '🌋',
+                      hiking: '🥾',
+                      family: '👨‍👩‍👧‍👦',
+                      roadtrip: '🚗',
+                      beach: '🏝️',
+                      mountain: '⛰️',
+                      city: '🏙️',
+                      cruise: '🚢',
+                      solo: '🧳',
+                      other: '✈️'
+                    };
+                    
+                    return (
+                      <button
+                        key={tripType}
+                        onClick={() => setActiveFilter(tripType)}
+                        className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex items-center ${
+                          activeFilter === tripType
+                            ? typeStyles[tripType as keyof typeof typeStyles] || 'bg-gray-100 text-gray-800'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        <span className="mr-1.5">
+                          {typeIcons[tripType as keyof typeof typeIcons] || '✈️'}
+                        </span>
+                        {tripType.charAt(0).toUpperCase() + tripType.slice(1)}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>

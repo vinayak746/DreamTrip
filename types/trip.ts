@@ -2,24 +2,34 @@ export type TripType = 'leisure' | 'business' | 'adventure' | 'hiking' | 'family
 
 export interface Activity {
   id: string;
-  title: string;
-  description: string;
-  startTime: string;
-  endTime: string;
-  location: string;
+  name: string;
+  description?: string;
+  location?: string;
+  time?: string;
   cost?: number;
   notes?: string;
-  imageUrl?: string;
-  isBooked: boolean;
+  isBooked?: boolean;
   bookingReference?: string;
+}
+
+export interface Activity {
+  id: string;
+  name: string;
+  description?: string;
+  location?: string;
+  time?: string;
+  cost?: number;
+  notes?: string;
+  isBooked?: boolean;
 }
 
 export interface TripDay {
   id: string;
-  date: string;
+  day?: number;
+  date?: string;
   location: string;
-  description?: string;
   activities: Activity[];
+  description?: string;
   notes?: string;
   images?: string[];
   accommodation?: {
@@ -37,44 +47,59 @@ export interface TripDay {
   };
 }
 
+export interface BudgetExpense {
+  id: string;
+  category: string;
+  amount: number;
+  description: string;
+  date: string;
+  receiptUrl?: string;
+}
+
+export interface TripBudget {
+  total: number;
+  currency: string;
+  expenses: BudgetExpense[];
+}
+
 export interface TripFormData {
+  // Basic trip info
   title: string;
   location: string;
   startDate: string;
   endDate: string;
   type: TripType;
-  description?: string;
-  isFavorite?: boolean;
+  description: string;
+  
+  // Images
   imageFiles?: File[];
-  imageUrl?: string; // For backward compatibility
-  imageUrls?: string[]; // Made optional to match the form data
-  days?: TripDay[];
-  budget?: {
-    total: number;
-    currency: string;
-    expenses: Array<{
-      id: string;
-      category: string;
-      amount: number;
-      description: string;
-      date: string;
-    }>;
-  };
-  collaborators?: string[]; // Array of user IDs
-  isPublic?: boolean;
-  tags?: string[];
+  imageUrl: string;
+  imageUrls: string[];
+  coverImageIndex: number;
+  
+  // Metadata
+  tags: string[];
+  isPublic: boolean;
+  isFavorite: boolean;
+  
+  // Itinerary
+  days: TripDay[];
+  
+  // Budget
+  budget?: TripBudget;
+  
+  // Collaboration
+  collaborators: string[]; // Array of user IDs
+  
+  // System fields
+  saved: number;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Trip extends Omit<TripFormData, 'imageFiles'> {
   id: string;
-  imageUrl?: string; // For backward compatibility
-  imageUrls?: string[]; // Made optional to match form data
-  saved: number;
-  days: TripDay[];
-  isFavorite: boolean;
-  userId: string;
-  createdAt: string;
-  updatedAt: string;
   sharedWith?: Array<{
     userId: string;
     email: string;
